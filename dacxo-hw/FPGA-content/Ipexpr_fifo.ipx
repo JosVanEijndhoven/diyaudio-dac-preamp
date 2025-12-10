@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DiamondModule name="Ipexpr_fifo" module="Ipexpr_fifo" VendorName="Lattice Semiconductor Corporation" generator="IPexpress" date="2015 06 13 22:04:00.510" version="5.7" type="Module" synthesis="lse" source_format="Verilog HDL">
+  <Package>
+		<File name="Ipexpr_fifo.lpc" type="lpc" modified="2015 06 13 22:03:55.783"/>
+		<File name="Ipexpr_fifo.v" type="top_level_verilog" modified="2015 06 13 22:03:55.859"/>
+		<File name="Ipexpr_fifo_tmpl.v" type="template_verilog" modified="2015 06 13 22:03:55.859"/>
+		<File name="tb_Ipexpr_fifo_tmpl.v" type="testbench_verilog" modified="2015 06 13 22:03:55.861"/>
+  </Package>
+</DiamondModule>

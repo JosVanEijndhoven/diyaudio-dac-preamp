@@ -1,0 +1,973 @@
+EESchema Schematic File Version 2
+LIBS:output-xform-cache
+LIBS:output-xform-rescue
+LIBS:relaixed
+LIBS:power
+LIBS:device
+LIBS:transistors
+LIBS:conn
+LIBS:linear
+LIBS:regul
+LIBS:74xx
+LIBS:cmos4000
+LIBS:adc-dac
+LIBS:memory
+LIBS:xilinx
+LIBS:microcontrollers
+LIBS:dsp
+LIBS:microchip
+LIBS:analog_switches
+LIBS:motorola
+LIBS:texas
+LIBS:intel
+LIBS:audio
+LIBS:interface
+LIBS:digital-audio
+LIBS:philips
+LIBS:display
+LIBS:cypress
+LIBS:siliconi
+LIBS:opto
+LIBS:atmel
+LIBS:contrib
+LIBS:valves
+EELAYER 25 0
+EELAYER END
+$Descr A4 11693 8268
+encoding utf-8
+Sheet 1 1
+Title ""
+Date "23 feb 2016"
+Rev ""
+Comp ""
+Comment1 ""
+Comment2 ""
+Comment3 ""
+Comment4 ""
+$EndDescr
+$Comp
+L PNP Q1
+U 1 1 558DBA40
+P 4550 1700
+F 0 "Q1" H 4550 1550 60  0000 R CNN
+F 1 "2N2905A" H 4550 1850 50  0000 R CNN
+F 2 "RelaixedPassiveFront:2N2905-TO5" H 4550 1700 60  0001 C CNN
+F 3 "~" H 4550 1700 60  0000 C CNN
+	1    4550 1700
+	-1   0    0    1   
+$EndComp
+$Comp
+L PNP Q2
+U 1 1 558DBA54
+P 5450 1700
+F 0 "Q2" H 5450 1550 60  0000 R CNN
+F 1 "2N2905A" H 5450 1850 50  0000 R CNN
+F 2 "RelaixedPassiveFront:2N2905-TO5" H 5450 1700 60  0001 C CNN
+F 3 "~" H 5450 1700 60  0000 C CNN
+	1    5450 1700
+	1    0    0    1   
+$EndComp
+$Comp
+L DIODE D3
+U 1 1 558DBA76
+P 5000 1500
+F 0 "D3" H 5000 1600 40  0000 C CNN
+F 1 "DIODE" H 5000 1400 40  0000 C CNN
+F 2 "RelaixedPassiveFront:DO-214" H 5000 1500 60  0001 C CNN
+F 3 "~" H 5000 1500 60  0000 C CNN
+	1    5000 1500
+	0    1    1    0   
+$EndComp
+$Comp
+L R-RESCUE-output-xform R7
+U 1 1 558DBB6A
+P 5000 3050
+F 0 "R7" V 5080 3050 40  0000 C CNN
+F 1 "5.6k" V 5007 3051 40  0000 C CNN
+F 2 "RelaixedPassiveFront:MMB0207" V 4930 3050 30  0001 C CNN
+F 3 "~" H 5000 3050 30  0000 C CNN
+	1    5000 3050
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	4750 1700 5250 1700
+Connection ~ 5000 1700
+Wire Wire Line
+	5000 1700 5000 2800
+Wire Wire Line
+	5000 3300 5000 3850
+$Comp
+L R-RESCUE-output-xform R6
+U 1 1 558DBBAC
+P 4750 3500
+F 0 "R6" V 4830 3500 40  0000 C CNN
+F 1 "1k" V 4757 3501 40  0000 C CNN
+F 2 "RelaixedPassiveFront:MMB0207" V 4680 3500 30  0001 C CNN
+F 3 "~" H 4750 3500 30  0000 C CNN
+	1    4750 3500
+	0    -1   -1   0   
+$EndComp
+Wire Wire Line
+	4450 1900 4450 3850
+Connection ~ 4450 3500
+Wire Wire Line
+	5550 1900 5550 3850
+Connection ~ 5550 3500
+Connection ~ 5000 3700
+$Comp
+L AGND #PWR01
+U 1 1 558DBC0E
+P 4100 1300
+F 0 "#PWR01" H 4100 1300 40  0001 C CNN
+F 1 "AGND" H 4100 1230 50  0000 C CNN
+F 2 "" H 4100 1300 60  0000 C CNN
+F 3 "" H 4100 1300 60  0000 C CNN
+	1    4100 1300
+	0    1    1    0   
+$EndComp
+Wire Wire Line
+	5000 1200 5000 1300
+$Comp
+L AGND #PWR02
+U 1 1 558DBC3C
+P 3650 4600
+F 0 "#PWR02" H 3650 4600 40  0001 C CNN
+F 1 "AGND" H 3650 4500 50  0000 C CNN
+F 2 "" H 3650 4600 60  0000 C CNN
+F 3 "" H 3650 4600 60  0000 C CNN
+	1    3650 4600
+	0    1    1    0   
+$EndComp
+Wire Wire Line
+	4900 4450 5100 4450
+Connection ~ 5000 4450
+$Comp
+L R-RESCUE-output-xform R9
+U 1 1 558DBE80
+P 5050 5350
+F 0 "R9" V 5130 5350 40  0000 C CNN
+F 1 "75" V 5057 5351 40  0000 C CNN
+F 2 "RelaixedPassiveFront:MMB0207" V 4980 5350 30  0001 C CNN
+F 3 "~" H 5050 5350 30  0000 C CNN
+	1    5050 5350
+	0    -1   -1   0   
+$EndComp
+Wire Wire Line
+	4600 4450 4500 4450
+Wire Wire Line
+	5400 4450 5500 4450
+Text Notes 5800 1600 0    50   ~ 0
+input current: each input\n12.4 mAdc +/- 7.8mApk\n362 ohm -> 2Veff
+Connection ~ 5000 3500
+$Comp
+L R-RESCUE-output-xform R10
+U 1 1 558DC03C
+P 5250 3500
+F 0 "R10" V 5330 3500 40  0000 C CNN
+F 1 "1k" V 5257 3501 40  0000 C CNN
+F 2 "RelaixedPassiveFront:MMB0207" V 5180 3500 30  0001 C CNN
+F 3 "~" H 5250 3500 30  0000 C CNN
+	1    5250 3500
+	0    -1   -1   0   
+$EndComp
+Wire Wire Line
+	4500 3500 4450 3500
+Wire Wire Line
+	5500 3500 5550 3500
+Connection ~ 5500 4800
+Connection ~ 4500 4800
+$Comp
+L DIODE D2
+U 1 1 55F53BA4
+P 3000 1400
+F 0 "D2" H 3000 1500 40  0000 C CNN
+F 1 "DIODE" H 3000 1300 40  0000 C CNN
+F 2 "RelaixedPassiveFront:DO-214" H 3000 1400 60  0001 C CNN
+F 3 "~" H 3000 1400 60  0000 C CNN
+	1    3000 1400
+	0    -1   -1   0   
+$EndComp
+$Comp
+L DIODE D1
+U 1 1 55F53BBA
+P 2350 1400
+F 0 "D1" H 2350 1500 40  0000 C CNN
+F 1 "DIODE" H 2350 1300 40  0000 C CNN
+F 2 "RelaixedPassiveFront:DO-214" H 2350 1400 60  0001 C CNN
+F 3 "~" H 2350 1400 60  0000 C CNN
+	1    2350 1400
+	0    -1   -1   0   
+$EndComp
+$Comp
+L CP1-RESCUE-output-xform C2
+U 1 1 55F53BE4
+P 2550 1900
+F 0 "C2" H 2600 2000 50  0000 L CNN
+F 1 "4.7mF" H 2700 1900 50  0000 L CNN
+F 2 "RelaixedPassiveFront:C_Radial_D16_L30_P7.5" H 2550 1900 60  0001 C CNN
+F 3 "UKW1E472MHD" H 2550 1900 60  0001 C CNN
+	1    2550 1900
+	0    1    1    0   
+$EndComp
+$Comp
+L CP1-RESCUE-output-xform C3
+U 1 1 55F53C13
+P 2550 2500
+F 0 "C3" H 2600 2600 50  0000 L CNN
+F 1 "4.7mF" H 2700 2500 50  0000 L CNN
+F 2 "RelaixedPassiveFront:C_Radial_D16_L30_P7.5" H 2550 2500 60  0001 C CNN
+F 3 "UKW1E472MHD" H 2550 2500 60  0001 C CNN
+	1    2550 2500
+	0    1    1    0   
+$EndComp
+$Comp
+L CP1-RESCUE-output-xform C4
+U 1 1 55F53C19
+P 2550 3100
+F 0 "C4" H 2600 3200 50  0000 L CNN
+F 1 "4.7mF" H 2700 3100 50  0000 L CNN
+F 2 "RelaixedPassiveFront:C_Radial_D16_L30_P7.5" H 2550 3100 60  0001 C CNN
+F 3 "UKW1E472MHD" H 2550 3100 60  0001 C CNN
+	1    2550 3100
+	0    1    1    0   
+$EndComp
+$Comp
+L CP1-RESCUE-output-xform C1
+U 1 1 55F53C1F
+P 1850 3700
+F 0 "C1" H 1900 3800 50  0000 L CNN
+F 1 "4.7mF" H 2000 3700 50  0000 L CNN
+F 2 "RelaixedPassiveFront:C_Radial_D16_L30_P7.5" H 1850 3700 60  0001 C CNN
+F 3 "UKW1E472MHD" H 1850 3700 60  0001 C CNN
+	1    1850 3700
+	0    1    1    0   
+$EndComp
+$Comp
+L R-RESCUE-output-xform R2
+U 1 1 55F53C25
+P 2350 2200
+F 0 "R2" V 2430 2200 40  0000 C CNN
+F 1 "33" V 2357 2201 40  0000 C CNN
+F 2 "RelaixedPassiveFront:MMB0207" V 2280 2200 30  0001 C CNN
+F 3 "~" H 2350 2200 30  0000 C CNN
+	1    2350 2200
+	1    0    0    -1  
+$EndComp
+$Comp
+L R-RESCUE-output-xform R3
+U 1 1 55F53C2B
+P 2350 2800
+F 0 "R3" V 2430 2800 40  0000 C CNN
+F 1 "33" V 2357 2801 40  0000 C CNN
+F 2 "RelaixedPassiveFront:MMB0207" V 2280 2800 30  0001 C CNN
+F 3 "~" H 2350 2800 30  0000 C CNN
+	1    2350 2800
+	1    0    0    -1  
+$EndComp
+$Comp
+L R-RESCUE-output-xform R1
+U 1 1 55F53C33
+P 1650 3400
+F 0 "R1" V 1730 3400 40  0000 C CNN
+F 1 "33" V 1657 3401 40  0000 C CNN
+F 2 "RelaixedPassiveFront:MMB0207" V 1580 3400 30  0001 C CNN
+F 3 "~" H 1650 3400 30  0000 C CNN
+	1    1650 3400
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	2350 1600 2350 1950
+Connection ~ 2350 1900
+Wire Wire Line
+	2350 2450 2350 2550
+Connection ~ 2350 2500
+Wire Wire Line
+	2350 3050 2350 3150
+Connection ~ 2350 3100
+Wire Wire Line
+	1650 3650 1650 3700
+$Comp
+L CP1-RESCUE-output-xform C5
+U 1 1 55F53D9E
+P 2550 3700
+F 0 "C5" H 2600 3800 50  0000 L CNN
+F 1 "4.7mF" H 2700 3700 50  0000 L CNN
+F 2 "RelaixedPassiveFront:C_Radial_D16_L30_P7.5" H 2550 3700 60  0001 C CNN
+F 3 "UKW1E472MHD" H 2550 3700 60  0001 C CNN
+	1    2550 3700
+	0    1    1    0   
+$EndComp
+$Comp
+L R-RESCUE-output-xform R4
+U 1 1 55F53DA4
+P 2350 3400
+F 0 "R4" V 2430 3400 40  0000 C CNN
+F 1 "33" V 2357 3401 40  0000 C CNN
+F 2 "RelaixedPassiveFront:MMB0207" V 2280 3400 30  0001 C CNN
+F 3 "~" H 2350 3400 30  0000 C CNN
+	1    2350 3400
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	2350 3650 2350 3700
+Wire Wire Line
+	2350 3100 1650 3100
+Wire Wire Line
+	1650 3100 1650 3150
+Wire Wire Line
+	2750 950  2750 3950
+Connection ~ 2750 1900
+Connection ~ 2750 2500
+Connection ~ 2750 3100
+Connection ~ 2750 3700
+Wire Wire Line
+	2050 3700 2050 3950
+Text GLabel 2300 3750 3    50   Output ~ 0
+-12VR
+Text GLabel 1600 3750 3    50   Output ~ 0
+-12VL
+Wire Wire Line
+	2350 3700 2300 3700
+Wire Wire Line
+	2300 3700 2300 3750
+Wire Wire Line
+	1650 3700 1600 3700
+Wire Wire Line
+	1600 3700 1600 3750
+$Comp
+L AGND #PWR03
+U 1 1 55F53F57
+P 2750 3950
+F 0 "#PWR03" H 2750 3950 40  0001 C CNN
+F 1 "AGND" H 2750 3880 50  0000 C CNN
+F 2 "" H 2750 3950 60  0000 C CNN
+F 3 "" H 2750 3950 60  0000 C CNN
+	1    2750 3950
+	1    0    0    -1  
+$EndComp
+$Comp
+L AGND #PWR04
+U 1 1 55F53F5D
+P 2050 3950
+F 0 "#PWR04" H 2050 3950 40  0001 C CNN
+F 1 "AGND" H 2050 3880 50  0000 C CNN
+F 2 "" H 2050 3950 60  0000 C CNN
+F 3 "" H 2050 3950 60  0000 C CNN
+	1    2050 3950
+	1    0    0    -1  
+$EndComp
+Text GLabel 4200 3700 0    50   Input ~ 0
+-12VL
+$Comp
+L RELAY_G6K_AB K2
+U 1 1 55F53F6C
+P 7150 5450
+F 0 "K2" H 7100 5850 70  0000 C CNN
+F 1 "RELAY_G6K_AB" H 7350 5450 55  0000 C CNN
+F 2 "RelaixedPassiveFront:G6K-2F-Y" H 7150 5450 60  0001 C CNN
+F 3 "~" H 7150 5450 60  0000 C CNN
+	1    7150 5450
+	0    -1   -1   0   
+$EndComp
+$Comp
+L XLR3-male K4
+U 1 1 55F53F94
+P 5000 5950
+F 0 "K4" H 5150 6200 60  0000 C CNN
+F 1 "XLR3-MALE" H 5300 5700 60  0000 C CNN
+F 2 "RelaixedPassiveFront:NC3MAH" H 5000 5950 60  0001 C CNN
+F 3 "~" H 5000 5950 60  0000 C CNN
+	1    5000 5950
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	5500 4450 5500 5950
+Wire Wire Line
+	5350 5950 5850 5950
+Wire Wire Line
+	4500 4450 4500 6300
+Wire Wire Line
+	4500 6300 5000 6300
+Wire Wire Line
+	5500 5350 5300 5350
+Connection ~ 5500 5350
+Wire Wire Line
+	4800 5350 4250 5350
+Wire Wire Line
+	4250 5200 4500 5200
+Connection ~ 4500 5200
+Wire Wire Line
+	4650 4600 4650 6400
+$Comp
+L R-RESCUE-output-xform R8
+U 1 1 55F54234
+P 5050 4800
+F 0 "R8" V 5130 4800 40  0000 C CNN
+F 1 "1k" V 5057 4801 40  0000 C CNN
+F 2 "RelaixedPassiveFront:MMB0207" V 4980 4800 30  0001 C CNN
+F 3 "~" H 5050 4800 30  0000 C CNN
+	1    5050 4800
+	0    -1   -1   0   
+$EndComp
+Wire Wire Line
+	5550 3850 5400 3850
+Wire Wire Line
+	4900 3850 5100 3850
+Connection ~ 5000 3850
+Wire Wire Line
+	4450 3850 4600 3850
+Text Notes 5600 3750 0    55   ~ 0
+Lundahl LL2811\n1:1:1:1  each 45 ohm
+$Comp
+L R-RESCUE-output-xform R5
+U 1 1 55F565AC
+P 4000 4600
+F 0 "R5" V 4080 4600 40  0000 C CNN
+F 1 "470" V 4007 4601 40  0000 C CNN
+F 2 "RelaixedPassiveFront:MMB0207" V 3930 4600 30  0001 C CNN
+F 3 "~" H 4000 4600 30  0000 C CNN
+	1    4000 4600
+	0    -1   -1   0   
+$EndComp
+Wire Wire Line
+	3650 4600 3750 4600
+Text Notes 4800 5200 0    55   ~ 0
+switch -20dB
+Wire Wire Line
+	5500 4800 5300 4800
+Wire Wire Line
+	4800 4800 4500 4800
+Wire Wire Line
+	5000 4600 5000 4450
+Wire Wire Line
+	4250 4600 5000 4600
+Connection ~ 4650 4600
+$Comp
+L CONN_3 K3
+U 1 1 55F56FA0
+P 5000 850
+F 0 "K3" V 4950 850 50  0000 C CNN
+F 1 "CONN_3" V 5050 850 40  0000 C CNN
+F 2 "RelaixedPassiveFront:SIL-3-screw" H 5000 850 60  0001 C CNN
+F 3 "" H 5000 850 60  0000 C CNN
+	1    5000 850 
+	0    -1   -1   0   
+$EndComp
+Wire Wire Line
+	5100 1200 5550 1200
+Wire Wire Line
+	5550 1200 5550 1500
+Wire Wire Line
+	4900 1200 4450 1200
+Wire Wire Line
+	4450 1200 4450 1500
+Wire Wire Line
+	5000 1300 4100 1300
+Wire Wire Line
+	2850 1200 3000 1200
+Wire Wire Line
+	2650 1200 2350 1200
+Wire Wire Line
+	2350 1650 3000 1650
+Wire Wire Line
+	3000 1650 3000 1600
+Connection ~ 2350 1650
+$Comp
+L PNP Q3
+U 1 1 55F572CD
+P 7750 1700
+F 0 "Q3" H 7750 1550 60  0000 R CNN
+F 1 "2N2905A" H 7750 1850 50  0000 R CNN
+F 2 "RelaixedPassiveFront:2N2905-TO5" H 7750 1700 60  0001 C CNN
+F 3 "~" H 7750 1700 60  0000 C CNN
+	1    7750 1700
+	-1   0    0    1   
+$EndComp
+$Comp
+L PNP Q4
+U 1 1 55F572D3
+P 8650 1700
+F 0 "Q4" H 8650 1550 60  0000 R CNN
+F 1 "2N2905A" H 8650 1850 50  0000 R CNN
+F 2 "RelaixedPassiveFront:2N2905-TO5" H 8650 1700 60  0001 C CNN
+F 3 "~" H 8650 1700 60  0000 C CNN
+	1    8650 1700
+	1    0    0    1   
+$EndComp
+$Comp
+L DIODE D4
+U 1 1 55F572D9
+P 8200 1500
+F 0 "D4" H 8200 1600 40  0000 C CNN
+F 1 "DIODE" H 8200 1400 40  0000 C CNN
+F 2 "RelaixedPassiveFront:DO-214" H 8200 1500 60  0001 C CNN
+F 3 "~" H 8200 1500 60  0000 C CNN
+	1    8200 1500
+	0    1    1    0   
+$EndComp
+$Comp
+L R-RESCUE-output-xform R13
+U 1 1 55F572E5
+P 8200 3050
+F 0 "R13" V 8280 3050 40  0000 C CNN
+F 1 "5.6k" V 8207 3051 40  0000 C CNN
+F 2 "RelaixedPassiveFront:MMB0207" V 8130 3050 30  0001 C CNN
+F 3 "~" H 8200 3050 30  0000 C CNN
+	1    8200 3050
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	7950 1700 8450 1700
+Connection ~ 8200 1700
+Wire Wire Line
+	8200 1700 8200 2800
+Wire Wire Line
+	8200 3300 8200 3850
+$Comp
+L R-RESCUE-output-xform R12
+U 1 1 55F572F1
+P 7950 3500
+F 0 "R12" V 8030 3500 40  0000 C CNN
+F 1 "1k" V 7957 3501 40  0000 C CNN
+F 2 "RelaixedPassiveFront:MMB0207" V 7880 3500 30  0001 C CNN
+F 3 "~" H 7950 3500 30  0000 C CNN
+	1    7950 3500
+	0    -1   -1   0   
+$EndComp
+Wire Wire Line
+	7650 1900 7650 3850
+Connection ~ 7650 3500
+Wire Wire Line
+	8750 1900 8750 3850
+Connection ~ 8750 3500
+Connection ~ 8200 3700
+$Comp
+L AGND #PWR05
+U 1 1 55F572FC
+P 7300 1300
+F 0 "#PWR05" H 7300 1300 40  0001 C CNN
+F 1 "AGND" H 7300 1230 50  0000 C CNN
+F 2 "" H 7300 1300 60  0000 C CNN
+F 3 "" H 7300 1300 60  0000 C CNN
+	1    7300 1300
+	0    1    1    0   
+$EndComp
+Wire Wire Line
+	8200 1200 8200 1300
+Wire Wire Line
+	8100 4450 8300 4450
+Connection ~ 8200 4450
+$Comp
+L R-RESCUE-output-xform R15
+U 1 1 55F57305
+P 8250 5350
+F 0 "R15" V 8330 5350 40  0000 C CNN
+F 1 "75" V 8257 5351 40  0000 C CNN
+F 2 "RelaixedPassiveFront:MMB0207" V 8180 5350 30  0001 C CNN
+F 3 "~" H 8250 5350 30  0000 C CNN
+	1    8250 5350
+	0    -1   -1   0   
+$EndComp
+Wire Wire Line
+	7800 4450 7700 4450
+Wire Wire Line
+	8600 4450 8700 4450
+Text Notes 9000 1600 0    50   ~ 0
+input current: each input\n12.4 mAdc +/- 7.8mApk\n362 ohm -> 2Veff
+Connection ~ 8200 3500
+$Comp
+L R-RESCUE-output-xform R16
+U 1 1 55F5730F
+P 8450 3500
+F 0 "R16" V 8530 3500 40  0000 C CNN
+F 1 "1k" V 8457 3501 40  0000 C CNN
+F 2 "RelaixedPassiveFront:MMB0207" V 8380 3500 30  0001 C CNN
+F 3 "~" H 8450 3500 30  0000 C CNN
+	1    8450 3500
+	0    -1   -1   0   
+$EndComp
+Wire Wire Line
+	7700 3500 7650 3500
+Wire Wire Line
+	8700 3500 8750 3500
+Connection ~ 8700 4800
+Connection ~ 7700 4800
+Text GLabel 7400 3700 0    50   Input ~ 0
+-12VR
+$Comp
+L XLR3-male K7
+U 1 1 55F57326
+P 8200 5950
+F 0 "K7" H 8350 6200 60  0000 C CNN
+F 1 "XLR3-MALE" H 8500 5700 60  0000 C CNN
+F 2 "RelaixedPassiveFront:NC3MAH" H 8200 5950 60  0001 C CNN
+F 3 "~" H 8200 5950 60  0000 C CNN
+	1    8200 5950
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	8700 4450 8700 5950
+Wire Wire Line
+	8550 5950 9050 5950
+Wire Wire Line
+	7700 4450 7700 6300
+Wire Wire Line
+	7700 6300 8200 6300
+Wire Wire Line
+	8700 5350 8500 5350
+Connection ~ 8700 5350
+Wire Wire Line
+	8000 5350 7450 5350
+Wire Wire Line
+	7450 5200 7700 5200
+Connection ~ 7700 5200
+Wire Wire Line
+	7850 4600 7850 6400
+$Comp
+L R-RESCUE-output-xform R14
+U 1 1 55F57336
+P 8250 4800
+F 0 "R14" V 8330 4800 40  0000 C CNN
+F 1 "1k" V 8257 4801 40  0000 C CNN
+F 2 "RelaixedPassiveFront:MMB0207" V 8180 4800 30  0001 C CNN
+F 3 "~" H 8250 4800 30  0000 C CNN
+	1    8250 4800
+	0    -1   -1   0   
+$EndComp
+Wire Wire Line
+	8750 3850 8600 3850
+Wire Wire Line
+	8100 3850 8300 3850
+Connection ~ 8200 3850
+Wire Wire Line
+	7650 3850 7800 3850
+$Comp
+L AGND #PWR06
+U 1 1 55F57346
+P 8950 4150
+F 0 "#PWR06" H 8950 4150 40  0001 C CNN
+F 1 "AGND" H 8950 4050 50  0000 C CNN
+F 2 "" H 8950 4150 60  0000 C CNN
+F 3 "" H 8950 4150 60  0000 C CNN
+	1    8950 4150
+	0    -1   -1   0   
+$EndComp
+Text Notes 8850 3750 0    55   ~ 0
+Lundahl LL2811\n1:1:1:1  each 45 ohm
+$Comp
+L R-RESCUE-output-xform R11
+U 1 1 55F5734E
+P 7200 4600
+F 0 "R11" V 7280 4600 40  0000 C CNN
+F 1 "470" V 7207 4601 40  0000 C CNN
+F 2 "RelaixedPassiveFront:MMB0207" V 7130 4600 30  0001 C CNN
+F 3 "~" H 7200 4600 30  0000 C CNN
+	1    7200 4600
+	0    -1   -1   0   
+$EndComp
+Text Notes 8000 5200 0    55   ~ 0
+switch -20dB
+Wire Wire Line
+	8700 4800 8500 4800
+Wire Wire Line
+	8000 4800 7700 4800
+Wire Wire Line
+	8200 4600 8200 4450
+Wire Wire Line
+	7450 4600 8200 4600
+Connection ~ 7850 4600
+$Comp
+L CONN_3 K6
+U 1 1 55F5735A
+P 8200 850
+F 0 "K6" V 8150 850 50  0000 C CNN
+F 1 "CONN_3" V 8250 850 40  0000 C CNN
+F 2 "RelaixedPassiveFront:SIL-3-screw" H 8200 850 60  0001 C CNN
+F 3 "" H 8200 850 60  0000 C CNN
+	1    8200 850 
+	0    -1   -1   0   
+$EndComp
+Wire Wire Line
+	8300 1200 8750 1200
+Wire Wire Line
+	8750 1200 8750 1500
+Wire Wire Line
+	8100 1200 7650 1200
+Wire Wire Line
+	7650 1200 7650 1500
+Wire Wire Line
+	8200 1300 7300 1300
+$Comp
+L RELAY_G6K_AB K2
+U 2 1 55F53F7B
+P 3950 5450
+F 0 "K2" H 3900 5850 70  0000 C CNN
+F 1 "RELAY_G6K_AB" H 4150 5450 55  0000 C CNN
+F 2 "RelaixedPassiveFront:G6K-2F-Y" H 3950 5450 60  0001 C CNN
+F 3 "~" H 3950 5450 60  0000 C CNN
+	2    3950 5450
+	0    1    -1   0   
+$EndComp
+$Comp
+L AGND #PWR07
+U 1 1 55F5736F
+P 6950 4600
+F 0 "#PWR07" H 6950 4600 40  0001 C CNN
+F 1 "AGND" H 6950 4500 50  0000 C CNN
+F 2 "" H 6950 4600 60  0000 C CNN
+F 3 "" H 6950 4600 60  0000 C CNN
+	1    6950 4600
+	0    1    1    0   
+$EndComp
+Wire Wire Line
+	8200 3700 7400 3700
+Wire Wire Line
+	5000 3700 4200 3700
+Text Notes 3000 850  0    55   ~ 0
+2x12Vac
+Text Notes 3950 3850 0    55   ~ 0
+27mA
+Text Notes 7100 3850 0    55   ~ 0
+27mA
+Text Notes 1600 2500 0    55   ~ 0
+100Hz damping\n40dB per stage
+$Comp
+L LL2811 T1
+U 1 1 56E73887
+P 5000 4150
+F 0 "T1" H 5000 4650 50  0000 C CNN
+F 1 "LL2811" H 5000 4150 50  0000 C CNN
+F 2 "RelaixedPassiveFront:LL2811" H 5000 4150 50  0001 C CNN
+F 3 "" H 5000 4150 50  0000 C CNN
+	1    5000 4150
+	0    -1   1    0   
+$EndComp
+$Comp
+L LL2811 T2
+U 1 1 56E73BAB
+P 8200 4150
+F 0 "T2" H 8200 4650 50  0000 C CNN
+F 1 "LL2811" H 8200 4150 50  0000 C CNN
+F 2 "RelaixedPassiveFront:LL2811" H 8200 4150 50  0001 C CNN
+F 3 "" H 8200 4150 50  0000 C CNN
+	1    8200 4150
+	0    -1   1    0   
+$EndComp
+$Comp
+L cinch-dual K5
+U 1 1 56E74195
+P 6150 5950
+F 0 "K5" H 6150 6150 60  0000 C CNN
+F 1 "cinch-dual" H 6450 5700 60  0000 C CNN
+F 2 "RelaixedPassiveFront:dualphono-kobiconn" H 6150 5950 60  0001 C CNN
+F 3 "" H 6150 5950 60  0000 C CNN
+	1    6150 5950
+	1    0    0    -1  
+$EndComp
+$Comp
+L cinch-dual K5
+U 2 1 56E7420C
+P 9350 5950
+F 0 "K5" H 9350 6150 60  0000 C CNN
+F 1 "cinch-dual" H 9650 5700 60  0000 C CNN
+F 2 "RelaixedPassiveFront:dualphono-kobiconn" H 9350 5950 60  0001 C CNN
+F 3 "" H 9350 5950 60  0000 C CNN
+	2    9350 5950
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	4650 6400 6150 6400
+Wire Wire Line
+	6150 6400 6150 6250
+Connection ~ 4650 5950
+Connection ~ 5500 5950
+Wire Wire Line
+	7850 6400 9350 6400
+Wire Wire Line
+	9350 6400 9350 6250
+Connection ~ 7850 5950
+Connection ~ 8700 5950
+Wire Wire Line
+	7450 5700 7450 5900
+Wire Wire Line
+	6850 5700 6850 5900
+$Comp
+L AGND #PWR08
+U 1 1 55F56359
+P 5750 4150
+F 0 "#PWR08" H 5750 4150 40  0001 C CNN
+F 1 "AGND" H 5750 4050 50  0000 C CNN
+F 2 "" H 5750 4150 60  0000 C CNN
+F 3 "" H 5750 4150 60  0000 C CNN
+	1    5750 4150
+	0    -1   -1   0   
+$EndComp
+Wire Wire Line
+	5600 4150 5750 4150
+Wire Wire Line
+	8800 4150 8950 4150
+Text Label 5550 1200 0    55   ~ 0
+inLpos
+Text Label 4450 1200 0    55   ~ 0
+inLneg
+Text Label 7650 1200 0    55   ~ 0
+inRneg
+Text Label 8750 1200 0    55   ~ 0
+inRpos
+Text Label 5550 3500 0    55   ~ 0
+primLpos
+Text Label 4450 3350 0    55   ~ 0
+primLneg
+Text Label 7650 3350 0    55   ~ 0
+primRneg
+Text Label 8750 3500 0    55   ~ 0
+primRpos
+Text Label 5000 1700 0    55   ~ 0
+baseL
+Text Label 8200 1700 0    55   ~ 0
+baseR
+$Comp
+L CONN_01X08 P2
+U 1 1 56F065FA
+P 1450 6500
+F 0 "P2" H 1450 6950 50  0000 C CNN
+F 1 "CONN_01X08" V 1550 6500 50  0000 C CNN
+F 2 "Pin_Headers:Pin_Header_Straight_1x08" H 1450 6500 50  0000 C CNN
+F 3 "" H 1450 6500 50  0000 C CNN
+	1    1450 6500
+	0    -1   1    0   
+$EndComp
+Text Label 1100 6300 1    50   ~ 0
+inLneg
+Text Label 1200 6300 1    50   ~ 0
+baseL
+Text Label 1300 6300 1    50   ~ 0
+primLneg
+Text Label 1400 6300 1    50   ~ 0
+baseL
+Text Label 1600 6300 1    50   ~ 0
+inLpos
+Text Label 1700 6300 1    50   ~ 0
+baseL
+Text Label 1800 6300 1    50   ~ 0
+primLpos
+$Comp
+L AGND #PWR09
+U 1 1 56F0EB66
+P 1500 6000
+F 0 "#PWR09" H 1500 6000 40  0001 C CNN
+F 1 "AGND" H 1500 5930 50  0000 C CNN
+F 2 "" H 1500 6000 60  0000 C CNN
+F 3 "" H 1500 6000 60  0000 C CNN
+	1    1500 6000
+	-1   0    0    1   
+$EndComp
+Wire Wire Line
+	1500 6300 1500 6000
+$Comp
+L CONN_01X08 P3
+U 1 1 56F0ACDC
+P 1450 7350
+F 0 "P3" H 1450 7800 50  0000 C CNN
+F 1 "CONN_01X08" V 1550 7350 50  0000 C CNN
+F 2 "Pin_Headers:Pin_Header_Straight_1x08" H 1450 7350 50  0000 C CNN
+F 3 "" H 1450 7350 50  0000 C CNN
+	1    1450 7350
+	0    -1   1    0   
+$EndComp
+Text Label 1100 7150 1    50   ~ 0
+inRneg
+Text Label 1200 7150 1    50   ~ 0
+baseR
+Text Label 1300 7150 1    50   ~ 0
+primRneg
+Text Label 1400 7150 1    50   ~ 0
+baseR
+Text Label 1600 7150 1    50   ~ 0
+inRpos
+Text Label 1700 7150 1    50   ~ 0
+baseR
+Text Label 1800 7150 1    50   ~ 0
+primRPos
+$Comp
+L AGND #PWR010
+U 1 1 56F0B17B
+P 1500 6800
+F 0 "#PWR010" H 1500 6800 40  0001 C CNN
+F 1 "AGND" H 1500 6730 50  0000 C CNN
+F 2 "" H 1500 6800 60  0000 C CNN
+F 3 "" H 1500 6800 60  0000 C CNN
+	1    1500 6800
+	-1   0    0    1   
+$EndComp
+Wire Wire Line
+	1500 7150 1500 6800
+$Comp
+L LED D5
+U 1 1 56F46F05
+P 2350 6850
+F 0 "D5" H 2350 6950 50  0000 C CNN
+F 1 "LED" H 2350 6750 50  0000 C CNN
+F 2 "LEDs:LED_1206" H 2350 6850 50  0001 C CNN
+F 3 "" H 2350 6850 50  0000 C CNN
+	1    2350 6850
+	0    -1   -1   0   
+$EndComp
+$Comp
+L R-RESCUE-output-xform R17
+U 1 1 56F46FC2
+P 2350 6400
+F 0 "R17" V 2430 6400 40  0000 C CNN
+F 1 "5k6" V 2357 6401 40  0000 C CNN
+F 2 "RelaixedPassiveFront:MMB0207" V 2280 6400 30  0001 C CNN
+F 3 "~" H 2350 6400 30  0000 C CNN
+	1    2350 6400
+	1    0    0    -1  
+$EndComp
+Text Label 2350 6150 0    55   ~ 0
+-16V
+Text Label 2350 1650 0    55   ~ 0
+-16V
+$Comp
+L AGND #PWR011
+U 1 1 56F4865F
+P 2350 7050
+F 0 "#PWR011" H 2350 7050 40  0001 C CNN
+F 1 "AGND" H 2350 6980 50  0000 C CNN
+F 2 "" H 2350 7050 60  0000 C CNN
+F 3 "" H 2350 7050 60  0000 C CNN
+	1    2350 7050
+	1    0    0    -1  
+$EndComp
+Text Notes 1500 2850 0    55   ~ 0
+elcos: 16mm dia,\n7.5mm pitch
+$Comp
+L CONN_01X05 K1
+U 1 1 56F5D6D7
+P 2650 750
+F 0 "K1" H 2650 1050 50  0000 C CNN
+F 1 "CONN_01X05" V 2750 750 50  0000 C CNN
+F 2 "RelaixedPassiveFront:SIL-5" H 2650 750 50  0000 C CNN
+F 3 "" H 2650 750 50  0000 C CNN
+	1    2650 750 
+	0    -1   -1   0   
+$EndComp
+Wire Wire Line
+	2850 1200 2850 950 
+Wire Wire Line
+	2650 1200 2650 950 
+Text Label 7450 5900 0    55   ~ 0
+ReP
+Text Label 6850 5900 0    55   ~ 0
+ReN
+Wire Wire Line
+	2450 950  2050 950 
+Wire Wire Line
+	2550 950  2550 1100
+Wire Wire Line
+	2550 1100 2050 1100
+Text Label 2050 950  0    55   ~ 0
+ReP
+Text Label 2050 1100 0    55   ~ 0
+ReN
+$EndSCHEMATC

@@ -1,0 +1,154 @@
+EESchema-DOCLIB  Version 2.0  Date: 09-Feb-15 22:27:03
+#
+$CMP 1G04
+K mux singlegate
+$ENDCMP
+#
+$CMP 1G04P
+K mux singlegate
+$ENDCMP
+#
+$CMP 1G3157
+D 1-bit analog switch
+K mux
+$ENDCMP
+#
+$CMP 1G80
+K singlegate DFF flipflop
+$ENDCMP
+#
+$CMP 1G98
+D single-gate mux selector, negated output
+K multi-function gate
+$ENDCMP
+#
+$CMP 4040
+D Binary Counter 12 stages (Asynchronous)
+K CMOS CNT CNT12
+F cmos4000/MC14040.pdf
+$ENDCMP
+#
+$CMP 74AC174
+D Hex D-type FlipFlop, reset
+K cmos REG REG6 DFF
+$ENDCMP
+#
+$CMP 78L05
+D Linear Regulator +5V
+K POWER REGUL
+F regulator\lm78lxx.pdf
+$ENDCMP
+#
+$CMP ADR381
+D voltage reference 2.5V
+$ENDCMP
+#
+$CMP BI_LED
+D LED DOUBLE type Bicolore
+K LED
+$ENDCMP
+#
+$CMP DLP-USB1232H
+D USB-to-UART with I2C and JTAG, based on FT2232H
+K USB UART I2C JTAG FT2232H ftdi
+$ENDCMP
+#
+$CMP DUAL-CINCH
+D dual cinch connector, horizontal PCB mounting
+$ENDCMP
+#
+$CMP JACK_2P
+D KLDX-0202-A
+$ENDCMP
+#
+$CMP L4941
+D Linear Regulator +5V
+K POWER REGUL
+F regulator\lm78xx.pdf
+$ENDCMP
+#
+$CMP LM193
+D Dual Voltage Comparator
+K Comp
+F ns/lm193.pdf
+$ENDCMP
+#
+$CMP LM293
+D Dual Voltage Comparator
+K Comp
+F ns/lm193.pdf
+$ENDCMP
+#
+$CMP LM393
+D Dual Voltage Comparator
+K Comp
+F ns/lm193.pdf
+$ENDCMP
+#
+$CMP LM7805
+D Linear Regulator +5V
+K POWER REGUL
+F regulator\lm78xx.pdf
+$ENDCMP
+#
+$CMP LM7812
+D Linear Regulator +12V
+K POWER REGUL
+F regulator\lm78xx.pdf
+$ENDCMP
+#
+$CMP MACHXO2-100
+D Lattice MachXO2 FPGA in 100-pin package
+K Lattice machxo2 fpga 1200 tqfp
+$ENDCMP
+#
+$CMP MC33375
+D Linear Regulator +5V
+K POWER REGUL
+F regulator\lm78xx.pdf
+$ENDCMP
+#
+$CMP NPN
+F transistors/bipolar/*.*
+$ENDCMP
+#
+$CMP NUD31XX
+D Dual relay driver
+K relay driver mosfet
+$ENDCMP
+#
+$CMP OPA2227
+D Dual Voltage Comparator
+K Comp
+F ns/lm193.pdf
+$ENDCMP
+#
+$CMP R
+D Resistance
+K R DEV
+$ENDCMP
+#
+$CMP RJ45-PULSE
+D Pulse J3011
+K RJ45
+$ENDCMP
+#
+$CMP RSMALL
+D Resistance
+K R DEV
+$ENDCMP
+#
+$CMP TS3A5018
+D 4-way analog switch SPDT
+K analog switch SPDT
+$ENDCMP
+#
+$CMP TSOP34838
+D TSOP IR receiver
+$ENDCMP
+#
+$CMP XO
+D xtal oscillator CCHD-957
+$ENDCMP
+#
+#End Doc Library

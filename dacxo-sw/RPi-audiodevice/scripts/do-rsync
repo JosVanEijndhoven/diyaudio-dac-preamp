@@ -1,0 +1,51 @@
+#!/bin/sh
+#
+rsync -a -v -e "ssh -i /home/pi/.ssh/pi-rsync-key" \
+      --rsync-path="/usr/syno/bin/rsync" \
+      --numeric-ids \
+      --include-from=- \
+      / admin@DS213:/volume1/homes/admin/pi-rsync <<EOD
++ /home
++ /home/pi
++ /home/pi/scripts
++ /home/pi/jedac_soc_modules
++ /home/pi/jedac_soc_modules/*
++ /home/pi/linux
++ /home/pi/linux/sound
++ /home/pi/linux/sound/soc
++ /home/pi/linux/sound/soc/codecs
++ /home/pi/linux/sound/soc/codecs/jedac*
++ /home/pi/linux/sound/soc/codecs/pcm1792*
++ /home/pi/linux/sound/soc/codecs/Makefile
++ /home/pi/linux/sound/soc/codecs/Kconfig
+- /home/pi/linux/sound/soc/codecs/*
++ /home/pi/linux/sound/soc/bcm
++ /home/pi/linux/sound/soc/bcm/jedac*
++ /home/pi/linux/sound/soc/bcm/Makefile
++ /home/pi/linux/sound/soc/bcm/Kconfig
+- /home/pi/linux/sound/soc/bcm/*
+- /home/pi/linux/sound/soc/*
+- /home/pi/linux/sound/*
++ /home/pi/linux/arch
++ /home/pi/linux/arch/arm
++ /home/pi/linux/arch/arm/boot
++ /home/pi/linux/arch/arm/boot/dts
++ /home/pi/linux/arch/arm/boot/dts/overlays
++ /home/pi/linux/arch/arm/boot/dts/overlays/jedac*
++ /home/pi/linux/arch/arm/boot/dts/overlays/Makefile
++ /home/pi/linux/arch/arm/boot/dts/overlays/README
+- /home/pi/linux/arch/arm/boot/dts/overlays/*
+- /home/pi/linux/arch/arm/boot/dts/*
+- /home/pi/linux/arch/arm/boot/*
+- /home/pi/linux/arch/arm/*
+- /home/pi/linux/arch/*
+- /home/pi/linux/*
++ /etc
++ /etc/hosts
++ /etc/network
++ /etc/samba
++ /etc/samba/smb.conf
+- /etc/samba/*
+- /etc/*
+- */
+EOD

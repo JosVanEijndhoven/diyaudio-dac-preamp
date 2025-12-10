@@ -1,0 +1,9 @@
+[Unit]
+Description=DACXO control
+After=multi-user.target
+
+[Service]
+ExecStart=/usr/bin/python3 /home/jos/src/dacxo.py
+
+[Install]
+WantedBy=multi-user.target

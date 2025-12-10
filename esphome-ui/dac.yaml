@@ -1,0 +1,840 @@
+# Configuration for an esphome ARM based Lilygo T-display,
+# to control the DIY DAC design with FPGA and a pair of PCM1792 dac chips.
+# It supports a rotary encoder for volume control,
+# and the pushbutton in the same encoder for input channel select and power on/off.
+# Jos van Eijndhoven, Jan 2025
+#
+# The DAC design was created to achieve very low jitter distortion on its analog output, by:
+# - Use of high-quality, low-jitter xtal oscillators
+# - reclocking with a clean clock of digital signals just before their connection to the pcm dac chips
+# - clean low-noise powersupplies with local decoupling on the digital circuits.
+# - Avoid the common use of digitail filter techniques to bridge small differences
+#   in input (spdif) and output (clean, local xtal) clocks
+# - Instead, buffer the digital audio in a FIFO memory, and switch the output clock frequency between
+#   3 discrete (digital synthesised) clock rates: nominal, low, and high. The clockrate selection is
+#   driven by the audio buffer filling, so that it never overflows or underflows.
+#   The small deviation of 'low' and 'high' from the nominal rate (about 0.1%) allows that the clock
+#   rate gets modified at very low rate, i.e. kept constant for minutes at a time.
+#
+# Documentation on this DAC design can be found at:
+# - The controller board that is programmed with this yaml file:
+#   Board in esphome: https://devices.esphome.io/devices/Lilyo-TDisplay-S3
+#   MCU datasheet: https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf
+# - My design of the (digital) DAC board and a separate analog output stage
+#   This entails all of schematics, PCB design, FPGA content
+#   https://gitlab.com/JosVanEijndhoven/DACXO-hw
+#
+# For cec example see: https://www.youtube.com/watch?v=hJY-innhytc&t=124s
+# Based on CEC lib: https://github.com/Palakis/esphome-native-hdmi-cec
+#
+# Commandline usage to program this yaml file into the Lilygo board (on a Linux desktop):
+# $ source ~/espenv/venv/bin/activate
+# $ cd Git/dacesphome/
+# $ esphome run --device /dev/ttyACM0 dac.yaml
+#
+# The resulting esphome controller interacts with the DAC board through an I2C bus.
+# The on-board CS8416 is wired to be used in HW mode, so is NOT on I2C
+#        It is controlled by i2c-reg in FPGA at same chip addr
+# The FPGA is at i2c bus address 0x10,
+#     provides i2c addressable registers:
+#     read/write: 0x30  bit7: power_up
+#                       bit[6,4]: unused
+#                       bit[3,2]: sample rate in master mode
+#                                 input select in slave mode
+#                       bit1: master_base48
+#                       bit0: master_mode, not slave
+#                 0x31  bit[7,1]: unused
+#                       bit0: att20db  1: 20dB attenuation on analog audio out, 0: no attenuation
+#     readonly:   0x34  bit7: almost_full
+#                       bit6: almost_empty
+#                       bit5: adj_lo
+#                       bit4: adj_hi
+#                       bit[3,2]: rate_sel 0: none, 1: 44/48kHz, 2: 88/96kHz, 3: 176/192kHz
+#                       bit1: enbl_osc49M, !osc45M
+#                       bit0: rx_lock, 1:locked, 0:no lock in spdif receiver chip
+#                 0x35  bit[7,6]: 0
+#                       bit5: is_full
+#                       bit4: is_empty
+#                       bit3: rx_lock
+#                       bit2: PIN_ext4: reset dacs, active low
+#                       bit1: PIN_ext5
+#                       bit0: PIN_Vana: stay in reset if Vana is low
+# The pair of PCM1792a dac chips:
+# A created 'external' esphome component provides an improved API, controlling such chip through i2c.
+# This component is hereby provided in the 'components/pcm1792_i2c' subdirectory
+#   DAC_l has i2c bus address 0x4d
+#     registers 0x12, 0x13, 0x14 used for mode, using the 'set_mode' method
+#     register 0x10, 0x11 used for volume, using the 'set_volume' method
+#   DAC_r has i2c bus address 0x4c
+#     controlled similar as dac_l
+
+esphome:
+  name: dac
+  friendly_name: Esphome DAC
+  platformio_options:
+    board_build.f_flash: 80000000L
+    board_build.partitions: default_16MB.csv
+    board_build.arduino.memory_type: qio_opi
+  on_boot:
+    priority: 400
+    then:
+      - lambda: |-
+          id(arc_state).publish_state("Off");  
+  on_shutdown:
+    priority: 400
+    then:
+      - switch.turn_off: power
+      - lambda: |-
+          id(arc_state).publish_state("Off");
+
+external_components:
+  - source: github://landonr/lilygo-tdisplays3-esphome
+    components: [tdisplays3]
+  - source:
+      type: local
+      path: components
+    components: [pcm1792_i2c]
+#  - source: github://Palakis/esphome-hdmi-cec
+#  - source:
+#      type: git
+#      url: https://github.com/JosVanEijndhoven/esphome-native-hdmi-cec
+#      ref: safe_collision
+  - source:
+      type: local
+      path: ../esphome/esphome/components
+    components: [hdmi_cec]
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: arduino
+    # type: esp-idf
+
+psram:
+  mode: octal
+
+# Enable logging
+logger:
+  level: DEBUG
+#  level: INFO
+
+# Enable Home Assistant API
+api:
+  id: api_id
+  encryption:
+    key: !secret api_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_pw
+
+wifi:
+  reboot_timeout: 5min
+  output_power: 10dB
+  # fast_connect: true
+  networks:
+  - ssid: !secret wifi_chalet_ssid
+    password: !secret wifi_chalet_pw
+  - ssid: !secret wifi_home_ssid
+    password: !secret wifi_home_pw
+  on_connect:
+    then:
+      - logger.log:
+          format: "Connected to Wifi: IP=%s"
+          args: [ id(my_ip_address).state.c_str() ]
+          level: "INFO"
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Dac Fallback Hotspot"
+    password: "66FTMlSxkf38"
+
+globals:
+  - id: power_is_on
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: no_board
+    type: int
+    restore_value: no
+    initial_value: '1'
+  - id: set_volume_mute
+    type: std::function<void(bool)>
+    initial_value: |-
+      [](bool mute_override) {
+        uint8_t vol = std::lround(id(volume).state);
+        bool mutes = id(mute).state || mute_override;
+        if (mutes) {
+          vol = 0;
+        }
+        const uint8_t attenuate = (vol <= 44);
+        if (attenuate && vol != 0)
+          vol += 20;  // compensate on-chip attenuation for relay use
+        int err = id(i2c_receiver).write_register(0x31, &attenuate, 1);
+        if (err) {
+          const std::string msg = "set volume: i2c-fpga error " + std::to_string(err);
+          ESP_LOGE("i2c", msg.c_str());
+          id(dac_status).publish_state(msg.c_str());
+        }
+        if (id(power_is_on)) {
+          // the dac-chips are not accessable when analog power is off
+          id(i2c_dac_l).set_volume64(vol);
+          id(i2c_dac_r).set_volume64(vol);
+        }
+      }
+
+number:
+  - platform: template
+    id: volume
+    name: "Volume"
+    icon: "mdi:volume-high"
+    min_value: 0
+    max_value: 64
+    step: 1
+    optimistic: true
+    initial_value: 20
+    restore_value: true
+    on_value:
+      then:
+        - component.update: myscreen
+        - logger.log:
+            format: "Update volume to %.1f"
+            args: [ id(volume).state ]
+            level: "INFO"
+        - lambda: |-
+            // 'volume' is 0 .. 64
+            // with 0 for true silent, 64 is max volume, and 1-64 with 1dB steps
+            // A relay-activated 20dB analog attenuator is used for volumes <= 44
+            if (id(mute).state) {
+              id(mute).turn_off();  // de-activate mute on a volume change, and sets new volume
+            }
+            id(set_volume_mute)(false);
+            if (id(hdmi_connected).state) {
+              // hdmi Hot Plug Detect: connection is life
+              uint8_t vol = std::lround(id(volume).state);
+              id(cec).send(id(cec).address(), 0, {0x7A, vol}); // report audio status: (msb (0x80) is Mute) | (0 .. 0x7f is volume)
+            }
+  - platform: template
+    id: channel
+    name: "Channel"
+    min_value: 0
+    max_value: 3
+    step: 1
+    optimistic: true
+    initial_value: 2
+    restore_value: true
+    on_value:
+      then:
+        - component.update: myscreen
+        - logger.log:
+            format: "Update Channel to %.1f"
+            args: [ id(channel).state ]
+            level: "INFO"
+        - lambda: |-
+            const uint8_t chan = std::lround(id(channel).state);
+            const uint8_t val =  0x80 | (chan << 2); // powerup, SPDIF (slave) mode, input 3
+            const uint8_t pwr_in_reg = 0x30;
+            const int i2c_err = id(i2c_receiver).write_register(pwr_in_reg, &val, 1);
+            if (i2c_err) {
+              ESP_LOGE("i2c", "Error on writing to i2c power&input reg: bus error %d", i2c_err);
+            }
+            if (chan == 0 && id(hdmi_connected).state && id(arc_state).state == "Off") {
+              id(cec).send(0, {0xC0});  // Initiate ARC
+            }
+
+  - platform: template
+    id: hdmi_port
+    name: "TV Hdmi Port Nr"
+    icon: "mdi:video-input-hdmi"
+    min_value: 1
+    max_value: 6
+    step: 1
+    optimistic: true
+    initial_value: 3
+    restore_value: true
+    on_value:
+      then:
+        - logger.log:
+            format: "Update HDMI-ARC port on TV to %.0f"
+            args: [ id(hdmi_port).state ]
+            level: "INFO"
+        - lambda: |-
+            const uint16_t port = std::lround(id(hdmi_port).state);
+            id(cec).set_physical_address(((port & 0x7) << 12));  // we connect directly to the TV, no device in between
+            if (id(hdmi_connected).state) {
+              id(power).turn_off();  // need to re-register on cec network with new port address
+            }
+
+# GPIO11 is connected through a diode to to GPIO12 and intended for UART tx_pin
+uart:
+  id: cec_uart
+  tx_pin: GPIO11
+  baud_rate: 38400
+
+hdmi_cec:
+  id: cec
+  pin: GPIO12   # HDMI pin 13 (CEC), with HDMI pin 17 (DDC/CEC ground)
+                # wire our board's 5V to HDMI pin 18, for TV to recognise its connection
+                # HDMI ARC audio is on pin 14
+  uart_id: cec_uart
+  address: 0x5  # is 'Audio System' according to CEC 1.3 standard
+  # Physical address of the device. In this case: 4.0.0.0 (HDMI4 on the TV)
+  # DDC support is not yet implemented, so you'll have to set this manually.
+  physical_address: 0x3000 # Required, HDMI input 3 on TV has ARC support
+  osd_name: "DIY Dac"
+  on_message:
+    - opcode: 0x8C  # Give Device VendorID
+      then:
+        - lambda: |-
+            const uint8_t logical_addr = id(cec).address();  // typically '5' for 'audio system'
+            id(cec).send(logical_addr, 0xf, {0x87, 0x00, 0x09, 0xb0}); // broadcast as Onkyo
+    - opcode: 0x8F  # Give Device Power Status
+      then:
+        - lambda: |-
+            id(cec).send(id(cec).address(), source, {0x90, (uint8_t)(!id(power).state)});
+
+    - opcode: 0x36 # opcode for "Standby"
+      then:
+        - lambda: |-
+            const uint8_t chan = std::lround(id(channel).state);
+            if (chan == 0) {
+              id(power).turn_off();
+            }
+
+    - opcode: 0x70  # Receive 'System Audio Mode Request'  (TODO: optional phys address argument)
+      then:
+        - lambda: |-
+            // 'data' argument starts with '0x70' opcode, then 2 bytes with phys address, if present
+            if (data.size() > 1) {
+              // Has 'physical address' parameter: 'System Audio Mode Request On'
+              id(channel).publish_state(0);   // switch to TV input
+              if (!id(power).state) {
+                // The CEC standard says that the device should power-on if needed
+                id(power).turn_on();  // switch power on together with TV
+              } else {
+                id(cec).send(0xF, {0x72, 1}); // broadcast 'Set System Audio Mode' On
+                if (id(arc_state).state == "Off") {
+                  id(cec).send(0, {0xC0});  // Initiate ARC
+                }
+              }
+            } else {
+              // Message has no 'physical address' parameter, meaning 'System Audio Mode Request Off'
+              if (id(channel).state == 0.0) {
+                id(power).turn_off();  // switch power off
+              } else {
+                // keep listening to other input.
+                id(cec).send(0xF, {0x72, 0}); // broadcast 'Set System Audio Mode' Off
+                if (id(arc_state).state != "Off") {
+                  id(cec).send(0, {0xC5}); // Terminate ARC
+                  id(arc_state).publish_state("Off");
+                }
+              }
+            }
+
+    - opcode: 0x71  # Request for Audio status
+      then:
+        - lambda: |-
+            uint8_t vol = std::lround(id(volume).state);
+            if (id(mute).state) {
+              vol |= 0x80;
+            }
+            id(cec).send(0, {0x7A, vol}); // report audio status: (msb (0x80) is Mute) | (0 .. 0x7f is volume)
+
+    - opcode: 0x7D  # Request status of System Audio Mode
+      then:
+        - lambda: |-
+            const uint8_t chan = std::lround(id(channel).state);
+            uint8_t audio_is_on = id(power).state && (chan == 0);
+            id(cec).send(source, {0x7E, audio_is_on}); // (Amplifier) System Audio Mode is On
+
+   # Volume Up from TV remote
+    - data: [0x44, 0x41]
+      then:
+        - logger.log: "HDMI-CEC Volume Up"
+        - number.increment:
+            id: volume
+            cycle: false
+
+    # Volume Down from TV remote
+    - data: [0x44, 0x42]
+      then:
+        - number.decrement:
+            id: volume
+            cycle: false
+
+    # UI request Power Toggle
+    - data: [0x44, 0x40]
+      then:
+        - lambda: |-
+            const uint8_t chan = std::lround(id(channel).state);
+            if (chan == 0 || !id(power).state) {
+              id(power).toggle();
+            }
+
+    # UI request Power Toggle
+    - data: [0x44, 0x6B]
+      then:
+        - lambda: |-
+            const uint8_t chan = std::lround(id(channel).state);
+            if (chan == 0 || !id(power).state) {
+              id(power).toggle();
+            }
+
+    # UI request Power Off
+    - data: [0x44, 0x6C]
+      then:
+        - lambda: |-
+            const uint8_t chan = std::lround(id(channel).state);
+            if (chan == 0) {
+              id(power).turn_off();
+            }
+
+    # UI request Power On
+    - data: [0x44, 0x6D]
+      then:
+        - switch.turn_on: power
+
+    # UI request Mute
+    - data: [0x44, 0x43]
+      then:
+        - lambda: |-
+            const uint8_t chan = std::lround(id(channel).state);
+            if (chan == 0) {
+              id(mute).toggle();
+            }
+
+    # TV remote button released
+    - opcode: 0x45
+      then:
+        - lambda: |-
+            uint8_t vol = std::lround(id(volume).state);
+            if (id(mute).state) {
+              vol |= 0x80;
+            }
+            id(cec).send(0, {0x7A, vol}); // report audio status: (msb (0x80) is Mute) | (0 .. 0x7f is volume)
+
+    # ARC mode confirmation:
+    - opcode: 0xC1
+      then:
+        - lambda: |-
+            id(arc_state).publish_state("On");
+    # ARC mode deactivation
+    - opcode: 0xC2
+      then:
+        - lambda: |-
+            id(arc_state).publish_state("Off");
+    # ARC activation requested by TV, select first input on this DAC (having number value 0)
+    - opcode: 0xC3
+      then:
+        - number.set:
+            id: channel
+            value: 0
+        - lambda: |-
+            id(arc_state).publish_state("Negotiate On");
+            id(cec).send(0, {0xC0}); // send Initiate ARC request
+    # ARC termination requested by TV
+    - opcode: 0xC4
+      then:
+        - lambda: |-
+            id(arc_state).publish_state("Negotiate Off");
+            id(cec).send(0, {0xC5}); // send Terminate ARC request
+    # ARC digital audio capabilites are requested by TV:
+    # See CEC 1.4 doc on 'Audio Format Code'
+    # For possible answer parameter values,
+    # see spec in https://en.wikipedia.org/wiki/Extended_Display_Identification_Data
+    - opcode: 0xA4
+      then:
+        - lambda: |-
+            if (data.size() < 2 || data[1] != 1u) {
+              id(cec).send(id(cec).address(), 0, {0, 0xA4, 0x3});  // report 'Invalid operand' for unsupported audio
+            } else {
+              // TV inquires about PCM format
+              std::vector<uint8_t> pcm = {0xA3, 0x9, 0x1E, 0x7};  // PCM, 2-channel, 44-96kHz, 16-24bit
+              id(cec).send(id(cec).address(), 0, pcm);
+            }
+    - data: [0x00, 0xC0]  # TV replies 'feature abort' on ARC request  ## Requires patch in 'hdmi_cec.cpp'!
+      then:
+        - logger.log:
+            format: "HDMI-CEC: TV refuses ARC request. Check hdmi input port config"
+            args: []
+            level: "WARN"
+        - lambda: |-
+            id(arc_state).publish_state("Refused");
+
+switch:
+  - platform: output
+    name: "Power"
+    id: power
+    output: 'power_led'
+    restore_mode: RESTORE_DEFAULT_OFF
+    # On a system crash, try to avoid the power-off then power-on sequence
+    # Note: we always 'turn_on' on boot
+    on_turn_on:
+      then:
+        - logger.log:
+            format: "switch Power On"
+            level: "INFO"
+        - light.turn_on: backlight
+        - output.turn_on: gpio_lcd_pwr
+        - lambda: |-
+            // initialize power&input select on i2c reg in fpga
+            const uint8_t chan = std::lround(id(channel).state);
+            const uint8_t seldata =  0x80 | (chan << 2); // powerup, SPDIF (slave) mode, input 3
+            const uint8_t pwr_in_reg = 0x30;
+            const int i2c_err = id(i2c_receiver).write_register(pwr_in_reg, &seldata, 1);
+            const uint8_t attenuate = 1;  // attenuate relay for silent power-up
+            const int relay_err = id(i2c_receiver).write_register(0x31, &attenuate, 1);
+            if (i2c_err) {
+              ESP_LOGE("i2c", "Error on writing to i2c power&input select: bus error %d", i2c_err);
+            } else {
+              ESP_LOGI("i2c", "Initialised receiver pwr&input for turn-on");
+            }
+            if (relay_err) {
+              ESP_LOGE("i2c", "Initialise relay attenuator i2c error %d", relay_err);
+            } else {
+              ESP_LOGI("i2c", "Initialised relay attenuator");
+            }
+        - delay: 0.5s
+        - lambda: |-
+            // initialize PCM dac chips: these remain in reset while (analog) powersupply is low.
+            uint32_t mode = pcm1792_i2c::MODE_FMT_24L
+                          | pcm1792_i2c::MODE_ATLD
+                          | pcm1792_i2c::MODE_FLT
+                          | pcm1792_i2c::MODE_ATS_LR8
+                          | pcm1792_i2c::MODE_MONO;
+            id(i2c_dac_l).set_mode(mode);  // mono mode, left channel
+            id(i2c_dac_r).set_mode(mode | pcm1792_i2c::MODE_CHSL);  // and right channel
+            id(power_is_on) = true;
+            id(set_volume_mute)(false);
+            id(power_and_connected).publish_state(id(hdmi_connected).state);
+    on_turn_off:
+      then:
+        - logger.log:
+            format: "switch Power Off"
+            level: "INFO"
+        - light.turn_off: backlight
+        - lambda: |-
+            id(set_volume_mute)(true);
+            id(power_and_connected).publish_state(false);
+            // power-off through receiver register in fpga
+            id(power_is_on) = false;
+            const uint8_t seldata =  0x00; // power off
+            const uint8_t pwr_in_reg = 0x30;
+            id(i2c_receiver).write_register(pwr_in_reg, &seldata, 1);
+
+  - platform: template
+    name: "Mute"
+    id: mute
+    restore_mode: RESTORE_DEFAULT_OFF
+    optimistic: true
+    on_turn_on:
+      then:
+        - logger.log:
+            format: "Mute On"
+            level: "INFO"
+        - lambda: |-
+            id(set_volume_mute)(false);
+    on_turn_off:
+      then:
+        - logger.log:
+            format: "Mute Off"
+            level: "INFO"
+        - lambda: |-
+            id(set_volume_mute)(false);
+
+  - platform: template
+    id: power_and_connected
+    # state is 'on' when both audio power is on and hdmi is connected (plugged-in)
+    internal: true
+    restore_mode: ALWAYS_OFF
+    optimistic: true
+    on_turn_on:
+      then:
+        - lambda: |-
+            id(cec).send(0, {0x72, 1});  // Set System Audio Mode On
+        - delay: 100ms
+        - lambda: |-
+            const uint8_t chan = std::lround(id(channel).state);
+            if (chan == 0) {
+              id(set_volume_mute)(false);
+              // silently assume that the TV did NOT reject the directly addressed 'System Audio Mode On'
+              id(cec).send(id(cec).address(), 0xf, {0x72, 1});  // 'System Audio Mode On' broadcast
+              id(cec).send(id(cec).address(), 0, {0xC0}); // Initiate ARC
+            }
+    on_turn_off:
+      then:
+        - lambda: |-
+            if (id(hdmi_connected).state) {
+              // audio power went off: inform TV that I do not handle its audio anymore
+              if (id(arc_state).state != "Off") {
+                id(cec).send(id(cec).address(), 0, {0xC5}); // Terminate ARC
+              }
+              id(cec).send(id(cec).address(), 0xF, {0x72, 0}); // Set System Audio Mode Off
+            }
+            id(arc_state).publish_state("Off");
+
+button:
+  - platform: template
+    name: "Turn Off TV"
+    on_press:
+      hdmi_cec.send:
+        destination: 0
+        data: [0x44, 0x6C]  # UI command, "Power Off"
+  - platform: template
+    name: "Turn On TV"
+    on_press:
+      hdmi_cec.send:
+        destination: 0
+        data: [0x44, 0x6D]  # UI command, "Power On"
+
+sensor:
+  - platform: rotary_encoder
+    id: volume_knob
+    pin_a:
+      number: GPIO21
+      mode:
+        input: true
+        pullup: true
+    pin_b:
+      number: GPIO17
+      mode:
+        input: true
+        pullup: true
+    on_clockwise:
+      - number.increment:
+          id: volume
+          cycle: false
+    on_anticlockwise:
+      - number.decrement:
+          id: volume
+          cycle: false
+  
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO0
+      inverted: true
+    name: "Button 1"
+    # top button on display
+  - platform: gpio
+    pin:
+      number: GPIO14
+      inverted: true
+    id: button_2
+    name: "Button 2"
+    # bottom button on display
+  - platform: gpio
+    pin:
+      number: GPIO13
+      mode:
+        input: true
+        pulldown: true
+    id: hdmi_connected
+    name: "Hdmi TV Detect"
+    # Presence of HDMI connection by monitoring the HDMI HPD pin 19,
+    # HPD is 2.4V .. 5.3V, it has 1k output resistance, protect input for >3.3V
+    # The esps3 pulldown resistance of 45k is sufficiently high
+    # Note that the TV regulary pulls this signal low for a fraction of a second
+    trigger_on_initial_state: true  # on boot-up, when high, trigger the 'on_press' action
+    filters:
+      - delayed_on: 200ms
+      - delayed_off: 200ms
+    on_press:
+      then:
+        - logger.log:
+            format: "HDMI Connected"
+            level: "INFO"
+        - lambda: |-
+            // on connect we need to broadcast my physical address and device type
+            const uint16_t port = std::lround(id(hdmi_port).state);
+            id(cec).set_physical_address(((port & 0x7) << 12));
+            const uint8_t logical_addr = id(cec).address();  // typically '5' for 'audio system'
+            std::vector<uint8_t> msg_data = {0x84, (uint8_t)((port & 0x7) << 4), 0x0, logical_addr};
+            id(cec).send(logical_addr, 0xf, msg_data); // broadcast my physical address
+            id(power_and_connected).publish_state(id(power).state);
+    on_release:
+      - logger.log:
+          format: "HDMI Disconnected"
+          level: "INFO"
+      - lambda: |-
+          id(power_and_connected).publish_state(false);
+
+  - platform: gpio
+    pin:
+      number: GPIO18
+      inverted: true
+    id: 'knob_press'
+    on_click:
+      # short click: incremet channel or turn-on power
+      - min_length: 20ms
+        max_length: 400ms
+        then:
+          if:
+            condition:
+              switch.is_on: power
+            then:
+              - number.increment:
+                  id: channel
+                  cycle: true
+            else:
+              - switch.turn_on: power
+      - min_length: 401ms
+        max_length: 3000ms
+        # long press: toggle power
+        then:
+          - switch.toggle: power
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      id: my_ip_address
+      name: "DAC IP"
+      icon: mdi:ip-network
+  - platform: version
+    hide_timestamp: false
+    disabled_by_default: false
+    id: build_version
+    name: "Build Version"
+  - platform: template
+    internal: false
+    id: dac_status
+    name: "DAC Status"
+  - platform: template
+    internal: false
+    id: buffer_status
+    name: "Buffer Fill"
+  - platform: template
+    internal: false
+    id: clock_status
+    name: "Clock Adjust"
+  - platform: template
+    id: arc_state
+    name: "ARC Status"
+
+output:
+  - platform: ledc
+    pin: GPIO38
+    id: gpio38
+    frequency: 2000
+  - platform: gpio
+    pin: GPIO02
+    id: power_led
+  - platform: gpio
+    pin: GPIO15
+    # LCD and battery Power Enable
+    id: gpio_lcd_pwr
+
+light:
+  - platform: monochromatic
+    output: gpio38
+    id: backlight
+    name: "Backlight"
+    restore_mode: RESTORE_DEFAULT_ON
+
+# You can either setup the backlight as a switch like below or make it dimmable using a light output like above
+# switch:
+#   - platform: gpio
+#     pin: GPIO38
+#     name: "Backlight"
+#     id: backlight
+#     internal: true
+#     restore_mode: RESTORE_DEFAULT_ON
+
+i2c:
+  sda: GPIO43
+  scl: GPIO44
+  scan: false
+  frequency: 100kHz
+  id: i2cbus
+
+i2c_device:
+  - id: i2c_receiver
+    i2c_id: i2cbus
+    address: 0x10
+
+pcm1792_i2c:
+  - id: i2c_dac_l
+    i2c_id: i2cbus
+    address: 0x4d
+    mode: 0x000862b0
+  - id: i2c_dac_r
+    i2c_id: i2cbus
+    address: 0x4c
+    mode: 0x000c62b0
+
+display:
+  - platform: tdisplays3
+    id: myscreen
+    update_interval: 1s
+    rotation: 270
+    lambda: |-
+      const static std::array<const char *, 8> samplerate_msg
+            = {"No Lock", "No Lock", "44kHz", "48kHz", "88kHz", "96kHz", "176kHz", "192kHz"};
+      const static Color c_white  = Color(255, 255, 255);
+      const static Color c_yellow = Color(255, 200,  0);
+      const static Color c_red    = Color(255,   0,  0);
+      Color msg_color = c_white;
+      const char* msg = "";
+      const char* clock_msg = "Nom";
+      const char* buffer_msg = "Nom";
+      const char* speed = "";
+      int i2c_err = 0;
+      uint8_t recv_status = 0;
+      static uint8_t prev_recv_status = 0;
+      const uint8_t recv_status_reg = 0x34;
+      const uint8_t chan = 1 + std::lround(id(channel).state);
+      const uint8_t vol = std::lround(id(volume).state);
+      i2c_err = id(i2c_receiver).read_register(recv_status_reg, &recv_status, 1);
+      if (i2c_err) {
+        msg = "i2c bus error";
+        msg_color = c_red;
+      } else if (!(recv_status & 0x01)) {
+        msg = "No signal";
+        msg_color = c_yellow;
+      } else {
+        msg = samplerate_msg[(recv_status >> 1) & 0x07];
+        if (recv_status & 0x30) {
+          clock_msg = (recv_status & 0x20) ? "Low" : "High";
+          speed = (recv_status & 0x20) ? "-" : "+";
+        }
+        if (recv_status & 0xc0) {
+          buffer_msg = (recv_status & 0x40) ? "Low" : "High";
+        }
+      }
+      if (recv_status != prev_recv_status) {
+        id(dac_status).publish_state(msg);  // is auto filtered for no change
+        id(clock_status).publish_state(clock_msg);
+        id(buffer_status).publish_state(buffer_msg);
+        prev_recv_status = recv_status;
+      }
+      if (id(button_2).state) {
+        it.printf(0,   0, id(roboto), c_white, "Buffer fill %s", buffer_msg);
+        it.printf(0,  35, id(roboto), c_white, "Clock rate %s", clock_msg);
+        it.printf(0, 70, id(roboto), Color(255, 255, 255), "HDMI=%d ARC=%s port=%d",
+                  id(hdmi_connected).state, id(arc_state).state, id(hdmi_port).state);
+        it.printf(0, 105, id(roboto), c_white, "HA connected=%d", id(api_id).is_connected());
+        it.printf(0, 140, id(roboto), c_white, "IP=%s", id(my_ip_address).state.c_str());
+      } else {
+        it.printf(110,   0, id(robotBig), c_white, "%02d", vol);
+        it.printf(0, 120, id(robotMid), c_white, "in %1d", chan);
+        if (id(mute).state) {
+          it.printf(120, 120, id(robotMid), c_white, "Muted");
+        } else {
+          it.printf(120, 135, id(roboto), msg_color, "%s%s", msg, speed);
+        }
+      }
+
+# Used for example above
+
+font:
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 30
+  - file: "gfonts://Roboto"
+    id: robotMid
+    size: 45
+  - file: "gfonts://Roboto"
+    id: robotBig
+    size: 100
+

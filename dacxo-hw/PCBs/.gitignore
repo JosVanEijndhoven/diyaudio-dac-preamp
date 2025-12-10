@@ -1,0 +1,8 @@
+output
+*.bak
+*.rpt
+*.gbr
+*.drl
+*.pos
+*.000
+*.pdf

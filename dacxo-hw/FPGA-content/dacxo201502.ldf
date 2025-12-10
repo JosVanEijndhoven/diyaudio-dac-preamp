@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BaliProject version="3.2" title="dacxo201502" device="LCMXO2-1200HC-4TG100C" default_implementation="impl1">
+    <Options/>
+    <Implementation title="impl1" dir="impl1" description="impl1" synthesis="lse" default_strategy="Strategy1">
+        <Options def_top="topcount"/>
+        <Source name="impl1/source/topcount.v" type="Verilog" type_short="Verilog">
+            <Options top_module="topcount"/>
+        </Source>
+        <Source name="impl1/source/cs8416.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="impl1/source/audio_buffer.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="Ipexpr_fifo.ipx" type="IPX_Module" type_short="IPX">
+            <Options/>
+        </Source>
+        <Source name="impl1/source/clock.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="impl1/source/clock_mode.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="impl1/source/i2c_gpio.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="dacxo.ldc" type="LSE Design Constraints File" type_short="LDC">
+            <Options/>
+        </Source>
+        <Source name="impl1/impl1.xcf" type="Programming Project File" type_short="Programming">
+            <Options/>
+        </Source>
+        <Source name="impl1/source/pin_assignments.lpf" type="Logic Preference" type_short="LPF">
+            <Options/>
+        </Source>
+        <Source name="sim_impl1/sim_impl1.spf" type="Simulation Project File" type_short="SPF">
+            <Options/>
+        </Source>
+    </Implementation>
+    <Strategy name="Strategy1" file="dacxo2015021.sty"/>
+</BaliProject>
