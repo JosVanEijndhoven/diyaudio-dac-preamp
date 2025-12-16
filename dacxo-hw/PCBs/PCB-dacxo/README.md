@@ -2,8 +2,8 @@
 ## Board inputs and outputs
 
 The PCB privides five digital audio inputs:
-  - Two optical sp/dif inputs
-  - Two coax sp/dif inputs
+  - Two optical s/pdif inputs
+  - Two coax s/pdif inputs
   - One i2s input
 
 The analog audio outputs are *intermediate*, needing further handling by a separate analog PCB.
@@ -21,10 +21,10 @@ An external microcontroller board shall be used to implement the control. This i
 Besides these settings, the microcontroller can read status information such as:
 
 - currently selected xtal oscillator
-- signal presence and sample rate of the current sp/dif input
+- signal presence and sample rate of the current s/pdif input
 - current status of the audio buffer and clock rate adjustment (see PLL description below)
 
-Based on the sp/dif received audio signal, the board hardware will automatically select one the two xtal
+Based on the s/pdif received audio signal, the board hardware will automatically select one the two xtal
 oscillators and a clock divider to match the samplerate of the signal.
 This logic is implemented in the on-board FPGA, a *MachxXO2-100* from Lattice Semiconductor,
 denoted *U306* in the schematics.
@@ -41,6 +41,23 @@ Furthermore, the board provides:
 - a USB input for programming the FPGA.
 - several connectors for easy access to measure various on-board signals.
 - a few LEDs for quick visual feedback on status.
+
+## s/pdif receiver
+
+The CS8416 (*U503* in the schematics) is used to receive the s/pdif datastream and select between
+four inputs: two optical and 2 coax. The coax inputs are implemented with high-frequncy isolation transformers
+for a good isolation of common-mode disturbance. In general, coax connections seems to have a preferrable
+signal transfer.
+
+The PCB allows the CS8416 to operate in eiter its 'SW mode' or its 'HW mode'.
+A 47k resistor can shall placed in either *R505* for Sw mode, or in *R501* for HW mode.
+Initially, during board testing, SW mode was used. In the final design, HW mode is used,
+where the various control wires are provided by the FPGA.
+(The two modes rely on a different FPGA content.)
+
+The audio clock which is recovered by the CS8416 from s/pdif is in sync with the audio bitstream,
+and used to clock the audio data into the FPGA buffer. This clock is considered *dirty* in this design,
+so is NOT used for the output clock on the DAC chips.
 
 ## Achieving low jitter
 
@@ -78,7 +95,7 @@ This low-noise supply voltage is used for the crystal oscillators, the re-clock 
 and the digital supply of the DAC chips.
 In *standby* mode, this *3.3Vana* with its off-PCB transformer is switched off.
 
-The other digital circuitry (the FPGA and the sp/dif receiver) are supplied from a separate 3.3V 'digital' power voltage.
+The other digital circuitry (the FPGA and the s/pdif receiver) are supplied from a separate 3.3V 'digital' power voltage.
 This same 'digital' power supply also provides a +5V to the front panel microcontroller
 through the 4-pin i2c connector (P402 in the schematics).
 The 'digital' power comes from an off-board +5V small SMPS (switch-mode power supply).
@@ -95,9 +112,9 @@ The inductor makes sure that the high-freuency switching currents remain local t
 Keeping these currrents local (in a very small loop) strongly reduces the EMC noise around the PCB.
 
 ### 5. Phase Locked Loop design
-Creating a good-sounding DAC from sp/dif inputs (optical or coax) poses a major extra challenge on clock synchronisation.
+Creating a good-sounding DAC from s/pdif inputs (optical or coax) poses a major extra challenge on clock synchronisation.
 Note that using an i2s or usb sound input does have this issue.
-Sp/dif audio is received with its own clock. Recovering that received clock from the sp/dif signal
+s/pdif audio is received with its own clock. Recovering that received clock from the s/pdif signal
 inevitably leads to a very bad (unstable, high jitter) clock signal.
 Unfortunately, a local fixed-frequency crystal oscillator might slightly deviate from the frequency of the received
 audio data stream, because its frequency can typically deviate by +/- 100ppm (or 0.01%) from the nominal
@@ -105,7 +122,7 @@ target (and the received stream).
 Due to this potential difference in center-frequency, some solution must be found.
 
 *Option 1:*
-Directly using the sp/dif retrieved clock for the DAC output is only done in the cheapest designs,
+Directly using the s/pdif retrieved clock for the DAC output is only done in the cheapest designs,
 with crappy sound quality. The local crystal oscillator is simply omitted.
 
 *Option 2:*
@@ -113,7 +130,7 @@ Traditionally, in vintage designs,
 a clean clock might be re-created with an analog 'phased locked loop' (PLL). Such PLL contains a VCO (or VCXO): an oscillator
 of which its frequence can be slightly tuned by an applied input voltage.
 If the PLL has a low-frequency and low-noise filter for the control voltage, the jitter in the re-created clock
-can be much lower then in the sp/dif-recovered clock.
+can be much lower then in the s/pdif-recovered clock.
 In theory this can be good, but in practice this is extremely hard. Even good-quality VCXOs (voltage controlled crystal
 oscillators) exhibit *much* higher jitter then the best fixed-frequency crystal oscillators.
 
@@ -129,7 +146,7 @@ but very slow jitter in the input and deviation in the average data rate,
 result in distortions (modified values) in the filtered output.
 
 *Option 4:*
-This DAC design takes a new approach, as far as I know. The input samples with their 'dirty' sp/dif clock are
+This DAC design takes a new approach, as far as I know. The input samples with their 'dirty' s/pdif clock are
 stored in a cyclic buffer (a queue of samples). This buffer can be relatively small,
 in this design it currently is 682 samples.
 The high-quality crystal clock is used to take samples out of this queue to send to the DAC chips.
@@ -156,15 +173,7 @@ Clearly, only one of those pairs should be mounted!
 
 ## FPGA programming
 The FPGA is a Lattice Semiconductor MachXO2 family device, in aprticular the LCMXO2-1200HC-4TG100I.
-It contains 1200 LUTs and 7 SRAM blocks of 9kbit each.
 It is housed in 100-pin TQFP package, which can still (barely) be hand-soldered on the PCB.
-At that time, Lattice was one of the few FPGA companies that provided free use of their programming software tools.
-
-The actual audio sample fifo buffer was generated by the tooling from a parameterized description.
-It has a width of 9 bits and a depth of 4K.
-Out of the bit-serial sp/dif data stream, 3 bytes per sample are taken (24 bits audio resolution).
-For both the left and right audio channel, that takes 6 bytes per sample period.
-That means that the audio buffer can store (4k/6) is about 682 sample periods.
 
 For easy programming of the onboard FPGA, a USB-to-jtag module is added to the PCB, denoted as *U401* in the schematics.
 This is a DLP-USB1232H module from DLP Design. It is only used for programming the FPGA. During normal DAC

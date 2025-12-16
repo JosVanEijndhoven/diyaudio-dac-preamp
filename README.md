@@ -7,7 +7,7 @@ The 'audio Digital-to-Analog Conversion' is the heart and main aim of the design
 However, more audio device functionality was built around that:
 
 - Functionality for a digital pre-amp is provided, with input selection
-  and volume control. Inputs are optical and coax SP/DIF, HDMI-arc, and a network DLNA player.
+  and volume control. Inputs are optical and coax s/pdif, HDMI-arc, and a network DLNA player.
 - The control UI (user interface) is created with [esphome](https://esphome.io/).
   Besides the front panel control knob, this also provides remote control from a mobile phone
   and/or integration in [home assistant](https://www.home-assistant.io/) automation environments.
