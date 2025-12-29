@@ -8,7 +8,7 @@
 PWD        := $(shell pwd)
 KERNELREV  := $(shell uname -r)
 LINUXHDR   := /usr/src/linux-headers-$(KERNELREV)
-LINUXOVLS  := $(LINUXHDR)/arch/arm/boot/dts/overlays
+LINUXOVLS  := $(LINUXHDR)/arch/arm64/boot/dts/overlays
 INSTALLDIR := /lib/modules/$(KERNELREV)/extra
 DATE       := $(shell date --rfc-3339=date)
 BACKUP     := ../jedac-rpi-$(DATE).tgz
@@ -28,6 +28,10 @@ INSTALL_INITD := /etc/init.d/jedac
 install: $(INSTALL_KOS) $(INSTALL_DTB) $(INSTALL_INITD)
 dtbs:    $(INSTALL_DTB)
 modules: $(LINUXHDR) $(LOCAL_KOS)
+show:
+	@echo '  LINUXHDR=' $(LINUXHDR)
+	@echo '  LINUXOVLS=' $(LINUXOVLS)
+	@echo '  KERNEL=' $(KERNEL)
 
 tar: $(BACKUP)
 
