@@ -1,4 +1,5 @@
-KDIR=/home/pi/linux-4.14
+KDIR=/lib/modules/$(shell uname -r)/build
+obj-m += jedac5_bcm.o
 
 default:
 	$(MAKE) -C $(KDIR) M=$$PWD

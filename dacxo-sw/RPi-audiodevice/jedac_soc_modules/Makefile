@@ -55,7 +55,7 @@ clean_install: clean
 
 uninstall:
 	sudo dtoverlay -v -r jedac5
-	sudo modprobe -v -r snd-soc-jedac5_codec snd-soc-pcm1792a-i2c snd-soc-jedac5_bcm
+	sudo modprobe -v -r snd-soc-jedac5_codec snd-soc-jedac5_bcm
 
 $(INSTALLDIR)/snd-soc-jedac5_bcm.ko: bcm/snd-soc-jedac5_bcm.ko
 	cd bcm && sudo $(MAKE) -C $(LINUXHDR) M=$$PWD modules_install
@@ -72,12 +72,12 @@ bcm/snd-soc-jedac5_bcm.ko: bcm/jedac5_bcm.c codecs/jedac5.h
 codecs/snd-soc-jedac5_codec.ko: codecs/jedac5_codec.c codecs/jedac5.h
 	cd codecs && $(MAKE) -C $(LINUXHDR) M=$$PWD modules
 
-codecs/snd-soc-pcm1792%.ko: codecs/pcm1792%.c codecs/pcm1792a.h
-	cd codecs && $(MAKE) -C $(LINUXHDR) M=$$PWD modules
+# codecs/snd-soc-pcm1792%.ko: codecs/pcm1792%.c codecs/pcm1792a.h
+# 	cd codecs && $(MAKE) -C $(LINUXHDR) M=$$PWD modules
 
 $(LINUXHDR):
 	@echo "Missing: $(LINUXHDR)"
-	@echo "Probably requires: sudo aptget install raspberrypi-kernel-headers"
+	@echo "Probably requires: sudo apt-get install raspberrypi-kernel-headers"
 	false
 
 # Modified output from jedac5-overlay.dtb to jedac5.dtbo, 

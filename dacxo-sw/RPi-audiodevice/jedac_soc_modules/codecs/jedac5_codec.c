@@ -113,16 +113,16 @@ static int jedac5_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-static int jedac5_digital_mute(struct snd_soc_dai *dai, int mute)
+static int jedac5_digital_mute(struct snd_soc_dai *dai, int mute, int )
 {
 	pr_info("jedac5_digital_mute( mute=%d) dummy\n", mute);
 	return 0;
 }
 
 static const struct snd_soc_dai_ops jedac5_dai_ops = {
-	.set_fmt	  = jedac5_set_dai_fmt,
-	.hw_params	  = jedac5_hw_params,
-	.digital_mute = jedac5_digital_mute
+	.set_fmt	   = jedac5_set_dai_fmt,
+	.hw_params	 = jedac5_hw_params,
+	.mute_stream = jedac5_digital_mute
 };
 
 static struct snd_soc_dai_driver jedac5_dai = {
@@ -136,23 +136,20 @@ static struct snd_soc_dai_driver jedac5_dai = {
 	.ops = &jedac5_dai_ops
 };
 
-static int jedac5_probe(struct snd_soc_codec *codec)
+static int jedac5_probe(struct snd_soc_component *component)
 {
 	pr_info("jedac5_probe() codec start\n");
 
 	return 0;
 }
 
-static int jedac5_remove(struct snd_soc_codec *codec)
+static void jedac5_remove(struct snd_soc_component *component)
 {
 	pr_info("jedac5_remove() codec\n");
 
-	//snd_soc_unregister_codec(dev);
-	//	pm_runtime_disable(dev);
-	return 0;
+	// pm_runtime_disable(dev); ??
 }
 
-#ifdef DELETETHIS
 static int my_info_volsw(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_info *uinfo)
 {
 	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
@@ -238,21 +235,20 @@ static const struct snd_soc_dapm_route jedac5_dapm_routes[] = {
 	{ "IOUTL", NULL, "Playback" },
 	{ "IOUTR", NULL, "Playback" },
 };
-#endif
 
-static struct snd_soc_codec_driver jedac5_codec_driver = {
+static struct snd_soc_component_driver jedac5_codec_driver = {
+	.name         = "snd_jve_dac",
 	.probe 				= jedac5_probe,
 	.remove 			= jedac5_remove,
-//	.controls		    = jedac5_codec_controls,
-//	.num_controls		= ARRAY_SIZE(jedac5_codec_controls),
-//	.dapm_widgets		= jedac5_dapm_widgets,
-//	.num_dapm_widgets	= ARRAY_SIZE(jedac5_dapm_widgets),
-//	.dapm_routes		= jedac5_dapm_routes,
-//	.num_dapm_routes	= ARRAY_SIZE(jedac5_dapm_routes)
+	.controls		    = jedac5_codec_controls,
+	.num_controls		= ARRAY_SIZE(jedac5_codec_controls),
+	.dapm_widgets		= jedac5_dapm_widgets,
+	.num_dapm_widgets	= ARRAY_SIZE(jedac5_dapm_widgets),
+	.dapm_routes		= jedac5_dapm_routes,
+	.num_dapm_routes	= ARRAY_SIZE(jedac5_dapm_routes)
 };
 
-static int jedac5_i2c_probe(struct i2c_client *i2c,
-			    const struct i2c_device_id *id)
+static int jedac5_i2c_probe(struct i2c_client *i2c)
 {
 	struct device *dev = &i2c->dev;
 	struct jedac5_codec_priv *jedac5_priv;
@@ -275,28 +271,25 @@ static int jedac5_i2c_probe(struct i2c_client *i2c,
 	dev_set_drvdata(dev, jedac5_priv);
 	jedac5_priv->regmap = regmap;
 
-	ret = snd_soc_register_codec(dev, &jedac5_codec_driver, &jedac5_dai, 1);
-	if (ret != 0) {
-		dev_err(dev, "jedac5_i2c_probe: Failed to register CODEC: %d\n", ret);
-//		pm_runtime_disable(dev);
-	} else
-		pr_info("jedac5_i2c_probe: registered codec dai!\n");
+	ret = snd_soc_register_component(dev, &jedac5_codec_driver, &jedac5_dai, 1);
+	if (ret && ret != -EPROBE_DEFER) {
+		dev_err(dev, "jedac5_i2c_probe: Failed to register card, err=%d\n", ret);
+	} else {
+		pr_info("jedac5_i2c_probe: registered card driver!\n");
+	}
 
  	pr_info("jedac5_i2c_probe: returns %d\n", ret);
-
 	return ret;
 }
 
-static int jedac5_i2c_remove(struct i2c_client *i2c)
+static void jedac5_i2c_remove(struct i2c_client *i2c)
 {
 	const char i2c_standby[] = {REGDAC_GPO0, 0x00};
 	pr_info("jedac5_i2c_remove(), DAC power-down\n");
-	snd_soc_unregister_codec(&i2c->dev);
 	
 	// power-down the DAC board to stand-by
 	i2c_master_send(i2c, i2c_standby, 2);
-	
-	return 0;
+	snd_soc_unregister_component(&i2c->dev);
 }
 
 static const struct i2c_device_id jedac5_i2c_id[] = {

@@ -35,6 +35,7 @@
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
 #include <sound/tlv.h>
+#include <sound/soc/codecs/pcm179x.h>
 
 #include "../codecs/jedac5.h"
 #include "../codecs/pcm1792a.h"
@@ -43,7 +44,7 @@
 * forward declarations of device-specific functions
 ******************************************************************************/
 static int jedac_pcm1792_init(struct snd_soc_component *component, bool is_right_chan);
-static int jedac_mode_init(struct snd_soc_codec *codec);
+static int jedac_mode_init(struct snd_soc_component *codec);
 static void jedac_i2c_set_volume( unsigned short vol_l, unsigned short vol_r);
 static int jedac_i2c_set_i2s(int samplerate);
 
@@ -61,8 +62,8 @@ static int jedac_pcm1792_init_r(struct snd_soc_component *component) {
 /* sound card init */
 static int snd_rpi_jedac5_dai_init(struct snd_soc_pcm_runtime *rtd)
 {
+	struct snd_soc_component *component = snd_soc_rtd_to_codec(rtd, 0)->component;
 	struct snd_soc_card *card = rtd->card;
-	struct snd_soc_codec *codec = rtd->codec;
 	struct snd_soc_dai_link *dai = rtd->dai_link;
 	//struct snd_kcontrol *kctl;
 	int ret;
@@ -72,7 +73,7 @@ static int snd_rpi_jedac5_dai_init(struct snd_soc_pcm_runtime *rtd)
 	pr_info("jedac5_bcm: snd_rpi_jedac5_dai_init: dai=\"%s\", dai_fmt=0x%x\n",
 		dai->name, dai->dai_fmt);
     // init CS8416 receiver chip
-	ret = jedac_mode_init(codec);
+	ret = jedac_mode_init(component);
 
 	pr_info("jedac5_bcm: snd_rpi_jedac5_dai_init returns %d\n", ret);
 	return ret;
@@ -80,13 +81,17 @@ static int snd_rpi_jedac5_dai_init(struct snd_soc_pcm_runtime *rtd)
 
 static struct snd_soc_aux_dev jedac5_aux_devs[] = {
 	{
-		.name = "pcm1792a_l",
-		.codec_name = "pcm1792a.1-4d", // bus addr 9a div 2: left channel
+		{
+      .name = "pcm1792a_l",
+		  .dai_name = "pcm179x.1-4d", // bus addr 9a div 2: left channel
+		},
 		.init = jedac_pcm1792_init_l,
 	},
 	{
-		.name = "pcm1792a_r",
-		.codec_name = "pcm1792a.1-4c", // bus addr 98 div 2: right channel
+		{
+		  .name = "pcm1792a_r",
+		  .dai_name = "pcm179x.1-4c", // bus addr 98 div 2: right channel
+		},
 		.init = jedac_pcm1792_init_r,
 	},
 };
@@ -105,7 +110,7 @@ static int snd_rpi_jedac5_hw_params(struct snd_pcm_substream *substream,
 				       struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
 	int samplerate = params_rate(params);
 	int samplewidth = snd_pcm_format_width(params_format(params));
 	int clk_ratio = 64; // fixed bclk ratio is easiest for my HW
@@ -208,24 +213,26 @@ static const struct snd_kcontrol_new jedac5_controls[] = {
 /* startup */
 static int snd_rpi_jedac5_startup(struct snd_pcm_substream *substream) {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_codec *codec = rtd->codec;
-	
-	const char* name = codec ? codec->component.name : "NULL";
-	snd_soc_write(codec, REGDAC_GPO0, GPO0_POWERUP | GPO0_SPIMASTER);
-	pr_info("jedac5_bcm:snd_rpi_jedac5_startup(): codec=%s powerup!\n", name);
+	struct snd_soc_component *component = snd_soc_rtd_to_codec(rtd, 0)->component;
+	// struct snd_soc_codec *codec = rtd->codec;
+	// const char* name = codec ? codec->component.name : "NULL";
+	// snd_soc_write(codec, REGDAC_GPO0, GPO0_POWERUP | GPO0_SPIMASTER);
+	snd_soc_component_write(component, REGDAC_GPO0, GPO0_POWERUP | GPO0_SPIMASTER);
+	pr_info("jedac5_bcm:snd_rpi_jedac5_startup(): codec=%s powerup!\n", component->name);
 	return 0;
 }
 
 /* shutdown */
 static void snd_rpi_jedac5_shutdown(struct snd_pcm_substream *substream) {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_codec *codec = rtd->codec;
-	const char* name = codec ? codec->component.name : "NULL";
+	struct snd_soc_component *component = snd_soc_rtd_to_codec(rtd, 0)->component;
+	// struct snd_soc_codec *codec = rtd->codec;
+	// const char* name = codec ? codec->component.name : "NULL";
 
 	// hmm.. powerdown not a very good idea here?
 	// this occurs within a minute of a song end.
 	// snd_soc_write(codec, REGDAC_GPO0, 0x00); // power-down DAC into standby
-	pr_info("jedac5_bcm:snd_rpi_jedac5_shutdown() codec=%s dummy\n", name);
+	pr_info("jedac5_bcm:snd_rpi_jedac5_shutdown() codec=%s dummy\n", component->name);
 }
 
 /* card suspend */
@@ -249,17 +256,19 @@ static struct snd_soc_ops snd_rpi_jedac5_ops = {
 	.shutdown = snd_rpi_jedac5_shutdown,
 };
 
+SND_SOC_DAILINK_DEFS(rpi_jedac5,
+	DAILINK_COMP_ARRAY(COMP_CPU("bcm2708-i2s.0")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("jedac5_codec.1-0020", "jedac5_codec")), //fpga is at i2c bus 1 addr 20
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("bcm2708-i2s.0")));
+
 static struct snd_soc_dai_link jedac5_dai_link[] = {
 {
 	.name		= "JvE DAC5",
 	.stream_name	= "JvE DAC",
-	.cpu_dai_name	= "bcm2708-i2s.0",
-	.codec_dai_name	= "jedac5_codec",
-	.platform_name	= "bcm2708-i2s.0",
-	.codec_name	= "jedac5_codec.1-0020", //cs4816 is at i2c bus 1 addr 20
 	.dai_fmt	= JEDAC_DAIFMT,
 	.ops		= &snd_rpi_jedac5_ops,
 	.init		= snd_rpi_jedac5_dai_init,
+	SND_SOC_DAILINK_REG(rpi_jedac5),
 },
 };
 
@@ -272,6 +281,8 @@ static const struct snd_soc_dapm_route jedac5_dapm_routes[] = {
 	{ "IOUTL", NULL, "Playback" },
 	{ "IOUTR", NULL, "Playback" },
 };
+
+
 /* Audio card  -- machine driver */
 static struct snd_soc_card jedac5_sound_card = {
 	.name = "JEDAC",
@@ -302,12 +313,13 @@ static const char* i2c_node_refs[] = {
 	"jve,dac_r"
 };
 
-static struct snd_soc_codec* get_rtd_codec(void) {
+static struct snd_soc_component* get_rtd_component(void) {
 	// assume my jedac device is used with only one instantiation!
 	struct snd_soc_pcm_runtime *rtd = NULL;
 	list_for_each_entry(rtd, &jedac5_sound_card.rtd_list, list) {
-		if (rtd && rtd->codec)
-			return rtd->codec;
+		struct snd_soc_dai* dai = NULL;
+		if (rtd && (dai = snd_soc_rtd_to_codec(rtd, 0)))
+			return dai->component;
 	}
 	return NULL;
 }
@@ -324,7 +336,7 @@ static int snd_rpi_jedac5_probe(struct platform_device *pdev)
 
 	if (np) {	
 		int i;
-	    struct device_node *i2s_node, *pcm_node;
+	  struct device_node *i2s_node, *pcm_node;
 		struct device_node *i2c_codec_node = NULL;
 
 		/* find my three i2c components on the dac board */
@@ -343,23 +355,38 @@ static int snd_rpi_jedac5_probe(struct platform_device *pdev)
 			} else {
 				/* my two pcm codecs as aux dev... */
 				struct snd_soc_aux_dev* aux_dev = &jedac5_aux_devs[i-1];
-				aux_dev->codec_name = NULL;
-				aux_dev->codec_of_node = pcm_node;
+				aux_dev->dlc.name = NULL;
+				aux_dev->dlc.of_node = pcm_node;
 			}
 		}
 
-	    i2s_node = of_parse_phandle(np, "i2s-controller", 0);
-		pr_info("jedac5_bcm: i2s_node is %s\n", (i2s_node?"OK":"NULL"));
+	  i2s_node = of_parse_phandle(np, "i2s-controller", 0);
+		if (!i2s_node) {
+			dev_err(&pdev->dev, "jedac5_bcm: i2s_node not found!\n");
+			return -EINVAL;
+		}
+		struct snd_soc_dai_link *dai = &jedac5_dai_link[0];
+		if (!dai) {
+			dev_err(&pdev->dev, "jedac5_bcm: dai not found!\n");
+			return -EINVAL;
+		}
 
-	    if (i2s_node) {
-			struct snd_soc_dai_link *dai = &jedac5_dai_link[0];
-			dai->cpu_dai_name = NULL;
-			dai->cpu_of_node = i2s_node;
-			dai->platform_name = NULL;
-			dai->platform_of_node = i2s_node;
-			dai->codec_name = NULL;
-			dai->codec_of_node = i2c_codec_node;
+	  if (i2s_node && dai) {
+		  pr_info("jedac5_bcm: dai num_cpus=%u, num_platforms=%u, num_codecs=%u\n",
+			  dai->num_cpus, dai->num_platforms, dai->num_codecs);
+			if (dai->num_cpus > 0) {
+			  dai->cpus[0].name = NULL;
+			  dai->cpus[0].of_node = i2s_node;
+			}
+			if (dai->num_platforms > 0) {
+			  dai->platforms[0].name = NULL;
+			  dai->platforms[0].of_node = i2s_node;
+			}
+			if (dai->num_codecs > 0) {
+			  dai->codecs[0].name = NULL;
+			  dai->codecs[0].of_node = i2c_codec_node;
 	    }
+		}
 	}
 	
 	ret = snd_soc_register_card(&jedac5_sound_card);
@@ -373,18 +400,18 @@ static int snd_rpi_jedac5_probe(struct platform_device *pdev)
 }
 
 /* sound card disconnect */
-static int snd_rpi_jedac5_remove(struct platform_device *pdev)
+static void snd_rpi_jedac5_remove(struct platform_device *pdev)
 {
-	struct snd_soc_codec *codec = get_rtd_codec();
 	pr_info("jedac5_bcm:snd_rpi_jedac5_remove(): power-down\n");
-	if (codec)
-		snd_soc_write(codec, REGDAC_GPO0, 0); // power down
-
-	// struct jedac5_private *priv = dev_get_drvdata(dev);
-	// assume that will be deallocated by below calls...
-	// snd_soc_unregister_codec(dev);
-
-	return snd_soc_unregister_card(&jedac5_sound_card);
+	struct snd_soc_component* component = get_rtd_component();
+	if (component) {
+    snd_soc_component_write(component, REGDAC_GPO0, 0); // power down
+	}
+	struct snd_soc_card *card = platform_get_drvdata(pdev);
+	if (card) {
+		kfree(&card->drvdata);
+		snd_soc_unregister_card(card); // or use: &edac5_sound_card
+	}
 }
 
 static const struct of_device_id jedac5_of_match[] = {
@@ -417,21 +444,21 @@ module_platform_driver(snd_rpi_jedac5_driver);
 // return 0 on success, !=0 on timeout or i2c or codec failure
 static int jedac_await_powerup(void)
 {
-	struct snd_soc_codec *codec = get_rtd_codec();
+	struct snd_soc_component *comp = get_rtd_component();
 	const unsigned char mode_reg = GPO0_POWERUP | GPO0_SPIMASTER;
 	const signed long delay = 50 * HZ / 1000; // 50 milliseconds per iteration
 	const int max_cnt = 60; // max allowed iterations until timeout error, expected is 6
 	int cnt, i2cerr;
 	int got_pwr = 0;
 	// the codec (fpga chip) is also powered on standby, and should always work
-	if (!codec)
+	if (!comp)
 		return -1;
 	
-	i2cerr = snd_soc_write(codec, REGDAC_GPO0, mode_reg);
+	i2cerr = snd_soc_component_write(comp, REGDAC_GPO0, mode_reg);
 
 	for (cnt = 0; !i2cerr && !got_pwr && cnt < max_cnt; cnt++)
 	{
-		int reg_val = snd_soc_read(codec, REGDAC_GPI1);
+		int reg_val = snd_soc_component_read(comp, REGDAC_GPI1);
 		if (reg_val < 0) // i2c read error
 			i2cerr = 1;
 		else if (reg_val & GPI1_ANAPWR)
@@ -505,12 +532,12 @@ static int jedac_pcm1792_init(struct snd_soc_component *component, bool is_right
 	return err;
 }
 
-// init the cs8416 receiver chip operating mode through its i2c bus
-static int jedac_mode_init(struct snd_soc_codec *codec)
+// init the FPGA (or cs8416 receiver chip) operating mode through its i2c bus
+static int jedac_mode_init(struct snd_soc_component *codec)
 {
 	struct jedac5_codec_priv *priv;
-    char chan = 3; // default input channel from 0 .. 3
-    char reg_chan;
+  char chan = 3; // default input channel from 0 .. 3
+  char reg_chan;
 	int i2cerr = 0;
 	
 	pr_info("jedac5_bcm: jedac_mode_init(codec=%p)\n", (void *)codec);
@@ -518,18 +545,18 @@ static int jedac_mode_init(struct snd_soc_codec *codec)
 			return -99;
 
 #ifdef CS8416_SWMODE
-    reg_chan = 0x80 | (chan << 3) | chan;
-    i2cerr = snd_soc_write(codec, 0x01, 0x06) // mute on err, rmck=128Fs
-          || snd_soc_write(codec, 0x02, 0x05) // set RERR (is UNLOCK) to gpo0 output
-          || snd_soc_write(codec, 0x05, 0x80) // 24-bit data, left justified,
-          || snd_soc_write(codec, 0x06, 0x10) // unmask the LOCK error
-          || snd_soc_write(codec, 0x04, reg_chan); // select input and start RUN mode
+  reg_chan = 0x80 | (chan << 3) | chan;
+  i2cerr = snd_soc_write(codec, 0x01, 0x06) // mute on err, rmck=128Fs
+        || snd_soc_write(codec, 0x02, 0x05) // set RERR (is UNLOCK) to gpo0 output
+        || snd_soc_write(codec, 0x05, 0x80) // 24-bit data, left justified,
+        || snd_soc_write(codec, 0x06, 0x10) // unmask the LOCK error
+        || snd_soc_write(codec, 0x04, reg_chan); // select input and start RUN mode
 #else
 	reg_chan = GPO0_POWERUP | GPO0_SPIMASTER;
-	i2cerr = snd_soc_write(codec, REGDAC_GPO0, reg_chan);
+	i2cerr = snd_soc_component_write(codec, REGDAC_GPO0, reg_chan);
 #endif
 	
-	priv = snd_soc_codec_get_drvdata(codec);
+	priv = snd_soc_component_get_drvdata(codec);
 	if (priv) {
 		priv->chan_select = chan; // Hmm... not used, rely on kcontrol structs in bcm??
 	}
@@ -542,42 +569,43 @@ static void jedac_i2c_set_volume( unsigned short att_l, unsigned short att_r)
 	// vol_? values are attenuation in dBs: 0 is max volume, 79 is min volume, 80 is mute
 
 	int id, i2cerr, reg_att;
-	struct snd_soc_component* component = NULL;
-	struct snd_soc_codec *codec = get_rtd_codec();
+	struct snd_soc_component *comp = get_rtd_component();
 	
-    int enable_20dB_att = (att_l >= 20)
-                       && (att_r >= 20);
-    int mute = (att_l >= DAC_max_attenuation_dB)
-	        && (att_r >= DAC_max_attenuation_dB);
+  int enable_20dB_att = (att_l >= 20) && (att_r >= 20);
+  int mute = (att_l >= DAC_max_attenuation_dB) && (att_r >= DAC_max_attenuation_dB);
 	
 	pr_info("jedac5_bcm: jedac_i2c_set_volume(att_l=%d att_r=%d)\n",
 		(int)att_l, (int)att_r);
 	
-	if (!codec) {
-		pr_info("jedac5_bcm: jedac_i2c_set_volume: num_rtd=%d, rtd_codec=%p\n",
-			jedac5_sound_card.num_rtd, (void *)codec);
+	if (!comp) {
+		pr_info("jedac5_bcm: jedac_i2c_set_volume: no component?? num_rtd=%d\n",
+			jedac5_sound_card.num_rtd);
 		return;
 	}
 
-    // adjust the digital volume attenuation for the 20dB switch if not totally silent
-    if (enable_20dB_att && !mute) {
-            att_l -= 20; // raise digital (dac) volume
-            att_r -= 20; // raise digital (dac) volume
-    }
+  // adjust the digital volume attenuation for the 20dB switch if not totally silent
+  if (enable_20dB_att && !mute) {
+    att_l -= 20; // raise digital (dac) volume
+    att_r -= 20; // raise digital (dac) volume
+  }
 	
 #ifdef CS8416_SWMODE
 	i2cerr = snd_soc_write(codec, REGDAC_control3, enable_20dB_att?0xc0:0x00);
 #else
-	i2cerr = snd_soc_write(codec, REGDAC_GPO1, enable_20dB_att?GPO1_ATT20DB:0);
+	i2cerr = snd_soc_component_write(comp, REGDAC_GPO1, (enable_20dB_att ? GPO1_ATT20DB : 0));
 #endif
-    if (i2cerr) {
-            pr_info("jedac5_bcm: jedac_i2c_set_volume(): error in i2c codec write!\n");
-            // continue further operation...
-    }
+  if (i2cerr) {
+    pr_info("jedac5_bcm: jedac_i2c_set_volume(): error in i2c codec write!\n");
+    // continue further operation...
+  } else {
+		pr_info("jedac5_bcm: jedac_i2c_set_volume(): wrote enable_20db_att=%d to %s\n",
+			enable_20dB_att, comp->name);
+	}
 	
 	// the pcm1792 dacs are used in dual-mono mode:
 	// write the volume to each of both codecs
 	id = 0;
+	struct snd_soc_component *component = NULL;
 	list_for_each_entry(component, &jedac5_sound_card.aux_comp_list, list) {
 		unsigned short att;
 		if (!component)
@@ -598,13 +626,15 @@ static void jedac_i2c_set_volume( unsigned short att_l, unsigned short att_r)
 		if (i2cerr) {
 			pr_info("jedac5_bcm: jedac_i2c_set_volume(): error in i2c write!\n");
 			return;
+		} else {
+			pr_info("jedac5_bcm: jedac_i2c_set_volume(): att=%d, write reg_att=0x%02x to %s\n",
+				att, reg_att, component->name);
 		}
 	}
 	if (id != 2) {
 		pr_info("jedac5_bcm: jedac_i2c_set_volume(): cannot access two pcm1792 components!\n");
-        if (component)
-			pr_info("jedac5_bcm: jedac_i2c_set_volume(): saw component name = \"%s\"\n",
-				component->name);
+    if (component)
+			pr_info("jedac5_bcm: jedac_i2c_set_volume(): saw component \"%s\"\n", component->name);
 		return;
 	}
 
@@ -613,7 +643,7 @@ static void jedac_i2c_set_volume( unsigned short att_l, unsigned short att_r)
 
 static int jedac_i2c_set_i2s(int samplerate)
 {
-	struct snd_soc_codec *codec = get_rtd_codec();
+	struct snd_soc_component *codec = get_rtd_component();
 	int i2cerr, freq_base, freq_mult, gpo_val;
 
 	if (!codec) {
@@ -642,9 +672,9 @@ static int jedac_i2c_set_i2s(int samplerate)
 	}
 	
 	gpo_val = GPO0_POWERUP | GPO0_SPIMASTER | (freq_base << 1) | (freq_mult << 2);
-	i2cerr = snd_soc_write(codec, REGDAC_GPO0, gpo_val);
+	i2cerr = snd_soc_component_write(codec, REGDAC_GPO0, gpo_val);
 	// as test, read-back fpga status byte
-	gpo_val = snd_soc_read(codec, REGDAC_GPI0);
+	gpo_val = snd_soc_component_read(codec, REGDAC_GPI0);
 	if (gpo_val < 0) // values >=0 indicate valid read, no error
 		i2cerr = gpo_val;
 		
