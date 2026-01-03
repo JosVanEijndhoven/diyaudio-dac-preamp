@@ -16,8 +16,7 @@ KERNEL     ?= kernel7
 export KERNEL
 
 LOCAL_KOS  := codecs/snd-soc-jedac5_codec.ko \
-              codecs/snd-soc-pcm1792a-i2c.ko \
-			  bcm/snd-soc-jedac5_bcm.ko
+              bcm/snd-soc-jedac5_bcm.ko
 
 INSTALL_KOS := $(addprefix $(INSTALLDIR)/,$(notdir $(LOCAL_KOS)))
 INSTALL_DTB := /boot/overlays/jedac5.dtbo
