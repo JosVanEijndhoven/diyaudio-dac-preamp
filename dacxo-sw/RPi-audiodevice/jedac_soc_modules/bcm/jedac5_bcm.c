@@ -35,7 +35,6 @@
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
 #include <sound/tlv.h>
-#include <sound/soc/codecs/pcm179x.h>
 
 #include "../codecs/jedac5.h"
 #include "../codecs/pcm1792a.h"
@@ -117,7 +116,6 @@ static int snd_rpi_jedac5_hw_params(struct snd_pcm_substream *substream,
 	int err = snd_soc_dai_set_bclk_ratio(cpu_dai, clk_ratio)
 	       || jedac_i2c_set_i2s(samplerate);
 	
-
 	//	snd_pcm_format_physical_width(params_format(params));
 	pr_info("jedac5_bcm:snd_rpi_jedac5_hw_params(rate=%d, width=%d) err=%d\n",
 		samplerate, samplewidth, err);
