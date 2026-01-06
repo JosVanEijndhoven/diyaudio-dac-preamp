@@ -214,14 +214,25 @@ This is intended for comparison, but for now only the PCM has been used.
 Clearly, only one of those pairs should be mounted!
 
 ## FPGA programming
-The FPGA is a Lattice Semiconductor MachXO2 family device, in particular the LCMXO2-1200HC-4TG100I.
-It is housed in 100-pin TQFP package, which can still (barely) be hand-soldered on the PCB.
+The FPGA is a [Lattice Semiconductor MachXO2 family](https://www.latticesemi.com/en/Products/FPGAandCPLD/MachXO2)
+device, in particular the LCMXO2-1200HC-4TG100I.
+This FPGA features internal configuration storage, so no extrernal flash memory is needed.
+It is housed in 100-pin TQFP package, which can still (barely) be hand-soldered on the PCB:
+
+![FPGA soldering](./dac-fpga.png)
 
 For easy programming of the onboard FPGA, a USB-to-jtag module is added to the PCB, denoted as *U401* in the schematics.
 This is a DLP-USB1232H module from DLP Design. It is only used for programming the FPGA. During normal DAC
 operation the module can harmlessly stay in place or can be removed.
 During programming, the PCB takes +5V from this module, and no other external power is needed.
 Note that there exist some late PCB wiring patches around its connection.
+
+## On-board LEDs for diagnosis
+The PCB has a number of LEDs that were convenient during early board
+testing and debug. These are five bi-color (red-green) LEDs.
+Their on/off status is according to the following table in matching top-down order:
+
+![LED status usage](./dac-leds-smaller.png)
 
 ## Late patches on the digital PCB
 After assembly and test, a couple of small patches were done. These are not shown in the
