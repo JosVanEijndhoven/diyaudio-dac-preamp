@@ -1,19 +1,25 @@
 # Audio DAC main digital PCB
+## Introduction
+The 'digital PCB' implements the most interesting parts of this DAC design.
+It is provided here with a global description below, pdf files
+of the [schematics](./dac5-schem-eurocircuits-20150214.pdf) and
+[PCB layout](./dac5-eurocircuits.pdf), and the original [KiCad](https://www.kicad.org/) design files.
+
 ## Board inputs and outputs
 
-The PCB privides five digital audio inputs:
+The PCB provides five digital audio inputs:
   - Two optical s/pdif inputs
   - Two coax s/pdif inputs
   - One i2s input
 
 The analog audio outputs are *intermediate*, needing further handling by a separate analog PCB.
 These outputs are the direct chip outputs of the (now mounted) pair of *PCM1792A* DAC chips.
-They operate in *dual mono* mode, and provide for each audio channel a differential current output of 2x 15.6mA p-p, on top of a DC current offset.
+They operate in *dual mono* mode, and provide for each audio channel a differential current output of 2x 15.6mA p-p, on top of a DC current offset of 12.4 mA.
 
 For control of the board, an i2c input is used.
 An external microcontroller board shall be used to implement the control. This includes settings such as:
 
-- Setup initialization
+- Setup initialization of chip operating modes.
 - Audio volume and balance
 - Input source selection
 - Power on versus standby mode
@@ -24,33 +30,34 @@ Besides these settings, the microcontroller can read status information such as:
 - signal presence and sample rate of the current s/pdif input
 - current status of the audio buffer and clock rate adjustment (see PLL description below)
 
-Based on the s/pdif received audio signal, the board hardware will automatically select one the two xtal
-oscillators and a clock divider to match the samplerate of the signal.
+Based on the s/pdif received audio signal, the board hardware will automatically select
+one the two xtal oscillators and a clock divider to match the samplerate of the signal.
 This logic is implemented in the on-board FPGA, a *MachxXO2-100* from Lattice Semiconductor,
-denoted *U306* in the schematics.
+denoted *U306* in the [schematics](./dac5-schem-eurocircuits-20150214.pdf).
 
 For power supply, the board takes a separated:
 
 - Analog supply as a raw (unrectified) input from 2x7V transformer.
 - Digital supply as a raw 5V dc from an external small smps (switch-mode power supply).
   The chosen 1A (5 watt) power is plenty for this design.
-  I selected a high quality and reliability type, approved for medical application.
+  I selected a high quality type, approved for medical applications, manufactured by Mean Well.
 
 Furthermore, the board provides:
 
 - a USB input for programming the FPGA.
-- several connectors for easy access to measure various on-board signals.
+- several connectors for easy access to measure and debug various on-board signals.
 - a few LEDs for quick visual feedback on status.
 
 ## s/pdif receiver
 
-The CS8416 (*U503* in the schematics) is used to receive the s/pdif datastream and select between
+The CS8416 (*U503* in the [schematics](./dac5-schem-eurocircuits-20150214.pdf))
+is used to receive the s/pdif datastream and select between
 four inputs: two optical and 2 coax. The coax inputs are implemented with high-frequncy isolation transformers
 for a good isolation of common-mode disturbance. In general, coax connections seems to have a preferrable
 signal transfer.
 
 The PCB allows the CS8416 to operate in eiter its 'SW mode' or its 'HW mode'.
-A 47k resistor can shall placed in either *R505* for Sw mode, or in *R501* for HW mode.
+A 47k resistor can shall placed in either *R505* for SW mode, or in *R501* for HW mode.
 Initially, during board testing, SW mode was used. In the final design, HW mode is used,
 where the various control wires are provided by the FPGA.
 (The two modes rely on a different FPGA content.)
@@ -62,7 +69,7 @@ so is NOT used for the output clock on the DAC chips.
 ## Achieving low jitter
 
 To achieve low jitter performance, different causes of jitter need to recognized and addressed.
-This is separated in aspects 1 to 5 below:
+This is distinguished in aspects 1 to 5 below:
 
 ### 1. Oscillator (reference clock) stability
 Low jitter in the main audio reference clock, corresponds to low oscillator phase noise.
@@ -101,15 +108,25 @@ through the 4-pin i2c connector (P402 in the schematics).
 The 'digital' power comes from an off-board +5V small SMPS (switch-mode power supply).
 In *stand by* mode, this 'digital' power will remain on.
 
-### 4. Good decoupling of IC power supply
-To obtain a clean supply voltage and reduce EMC-induced noise, good power-supply decoupling is required
-on all digital ICs. This is achieved by:
+### 4. Reduce EMI-induced noise
+Electromagnetic Interference (EMI) induced noise is caused by high-frequence
+elecromagnetic fields that spread around the PCB surface, and can cause signal degradation and jitter.
 
-- a local decoupling capacitor very close to each chip.
+For a clean supply voltage and reduced EMI fields, a well-designed
+[power-supply decoupling](https://www.murata.com/en-eu/products/emc/emifil/library/knowhow/basic/s2-chapter06-p1)
+is required on all digital ICs.
+This is achieved by:
+
+- a local power supply decoupling capacitor very close to each chip.
 - a high-frequency-suppression chip-inductor in the power-supply line for each chip.
 
 The inductor makes sure that the high-freuency switching currents remain local to the chip and its decoupling capacitor.
-Keeping these currrents local (in a very small loop) strongly reduces the EMC noise around the PCB.
+Keeping these currrents local (in a very small loop) strongly reduces the EMI noise around the PCB.
+
+Furthermore, small (47R to 470R) series-resistances are inserted in series in many
+of the audio data and clock lines. These reduce peak currents
+and [high-frequency ringing](https://www.protoexpress.com/blog/how-to-reduce-ringing-in-pcb-designs/)
+on these signals on the PCB.
 
 ### 5. Phase Locked Loop design
 Creating a good-sounding DAC from s/pdif inputs (optical or coax) poses a major extra challenge on clock synchronisation.
@@ -170,8 +187,13 @@ which means that the audio will remain in sync with video if the audio stream co
 
 The extra i2s input is on the PCB as *P408*.
 In i2s mode, the PCB assumes clock master mode, where it provides the bit-clock and word-clock to the interface.
-So the peripheral (audio streamer) should configure its i2s output in clock slave mode.
-In this clock master mode, there is no need to synchronize with an external clock.
+So the peripheral (audio streamer) should:
+
+1. Configure its i2s output in clock slave mode.
+2. Pass control information from the audio stream through i2c to the FPGA to indicate
+   the required sample rate.
+
+In this clock master mode, there is no need to synchronize with any other clock.
 Therefor, the fifo audio buffer is not used, nor is the +/- 0.1% clock rate adjustment.
 
 On *P408*, the following pin assignment is used (set by the FPGA configuration):
@@ -190,7 +212,7 @@ This is intended for comparison, but for now only the PCM has been used.
 Clearly, only one of those pairs should be mounted!
 
 ## FPGA programming
-The FPGA is a Lattice Semiconductor MachXO2 family device, in aprticular the LCMXO2-1200HC-4TG100I.
+The FPGA is a Lattice Semiconductor MachXO2 family device, in particular the LCMXO2-1200HC-4TG100I.
 It is housed in 100-pin TQFP package, which can still (barely) be hand-soldered on the PCB.
 
 For easy programming of the onboard FPGA, a USB-to-jtag module is added to the PCB, denoted as *U401* in the schematics.
@@ -203,9 +225,19 @@ Note that there exist some late PCB wiring patches around its connection.
 After assembly and test, a couple of small patches were done. These are not shown in the
 original Kicad schematics: those still belong to the PCB design.
 
-- Add a small rectifier diode from '+5Vana' to 'V5raw' for protection against power-up errors.
-- 'U403' (for jtag programming) was badly connected: Lift 'pin1' to de-connect from the pcb,
+1. Add a small rectifier diode from '+5Vana' to 'V5raw' for protection against power-up errors.
+2. 'U403' (for jtag programming) was badly connected: Lift 'pin1' to de-connect from the pcb,
   connect it to 'pin15' and 'pin8', and connect that triple to 'gnd'.
-- Replace R503 (47k) with 47 ohm.
-- Add a 4k7 resistor from 'rcv-rst' to 'gnd'.
+3. Replace R503 (47k) with 47 ohm.
+4. Add a 4k7 resistor from 'rcv-rst' to 'gnd'.
+
+Details on 2:
+![patch on U403](./u403-patch.png)
+Pin 1 got lifted from the PCB, which is hard to see in the photo.
+
+Details on 4:
+![patch on u503](./dac_recvr_patch.png)
+
+
+
   
