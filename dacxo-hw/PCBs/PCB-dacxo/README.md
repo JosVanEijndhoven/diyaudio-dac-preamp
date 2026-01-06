@@ -109,8 +109,10 @@ The 'digital' power comes from an off-board +5V small SMPS (switch-mode power su
 In *stand by* mode, this 'digital' power will remain on.
 
 ### 4. Reduce EMI-induced noise
-Electromagnetic Interference (EMI) induced noise is caused by high-frequence
-elecromagnetic fields that spread around the PCB surface, and can cause signal degradation and jitter.
+Electromagnetic Interference (EMI) induced noise is caused by high-frequency
+elecromagnetic fields that spread around the PCB surface, and can cause
+signal degradation and jitter. (Here, with 'high frequency' we worry about
+frequencies in the order of 100Mhz to 1GHz.)
 
 For a clean supply voltage and reduced EMI fields, a well-designed
 [power-supply decoupling](https://www.murata.com/en-eu/products/emc/emifil/library/knowhow/basic/s2-chapter06-p1)
@@ -120,7 +122,7 @@ This is achieved by:
 - a local power supply decoupling capacitor very close to each chip.
 - a high-frequency-suppression chip-inductor in the power-supply line for each chip.
 
-The inductor makes sure that the high-freuency switching currents remain local to the chip and its decoupling capacitor.
+The inductor makes sure that the high-freqency switching currents remain local to the chip and its decoupling capacitor.
 Keeping these currrents local (in a very small loop) strongly reduces the EMI noise around the PCB.
 
 Furthermore, small (47R to 470R) series-resistances are inserted in series in many
@@ -129,14 +131,14 @@ and [high-frequency ringing](https://www.protoexpress.com/blog/how-to-reduce-rin
 on these signals on the PCB.
 
 ### 5. Phase Locked Loop design
-Creating a good-sounding DAC from s/pdif inputs (optical or coax) poses a major extra challenge on clock synchronisation.
-Note that using an i2s or usb sound input does have this issue.
-s/pdif audio is received with its own clock. Recovering that received clock from the s/pdif signal
-inevitably leads to a very bad (unstable, high jitter) clock signal.
-Unfortunately, a local fixed-frequency crystal oscillator might slightly deviate from the frequency of the received
-audio data stream, because its frequency can typically deviate by +/- 100ppm (or 0.01%) from the nominal
-target (and the received stream).
-Due to this potential difference in center-frequency, some solution must be found.
+Creating a good-sounding DAC from s/pdif inputs (optical or coax) poses a major extra challenge on *clock synchronisation*.
+Note that an i2s or usb sound input can easily and totally avoid this issue.
+S/pdif audio is received with its own clock. Recovering that received clock from the s/pdif signal
+inevitably leads to a bad (unstable, high jitter) clock signal.
+Unfortunately, a local fixed-frequency crystal oscillator cannot directly replace
+that 'bad' clock, because it typically deviates from the frequency of the received
+audio data stream: crystal oscillators typically deviate by +/- 100ppm (or 0.01%) from the nominal frequency (and the received stream).
+To overcome this potential difference in center-frequency, some solution must be implemented.
 
 *Option 1:*
 Directly using the s/pdif retrieved clock for the DAC output is only done in the cheapest designs,
