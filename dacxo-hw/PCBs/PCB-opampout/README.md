@@ -1,7 +1,7 @@
 # Analog output stage
 ## Introduction
 This PCB provides a textbook style opamp-based analog output to accompany the digital PCB.
-This PCB was designed to function as basic reference (starting point) for other
+It was designed to function as basic reference (starting point) for other
 more high-end analog audio alternatives.
 
 The main functionality of this board is:
@@ -9,6 +9,10 @@ The main functionality of this board is:
 - Implement the current-to-voltage conversion that is needed for the (current output of) the PCM1792a DAC chips.
 - Create stereo balanced output on a pair of XLR connectors,
   next to a conventional (single-ended) cinch connector.
+
+The [schematics](./SchemaOutput-20131124.pdf) and the
+[PCB layout](./outputstage-layout-20131111.pdf) can be viewed in pdf.
+The original [KiCad](https://www.kicad.org/) design files are also provided here.
 
 ## Analog opamp output circuitry
 Each of the four audio signal inputs should handle a DC input of 12.4mA with a max signal of +/- 7.8mA peak,
