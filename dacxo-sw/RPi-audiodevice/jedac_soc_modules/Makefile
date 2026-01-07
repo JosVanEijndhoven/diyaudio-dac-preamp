@@ -25,6 +25,8 @@ INSTALL_INITD := /etc/init.d/jedac
 .PHONY: all tar backup dtbs modules install uninstall clean clean_all
 
 install: $(INSTALL_KOS) $(INSTALL_DTB) $(INSTALL_INITD)
+install_ko: $(INSTALL_KOS)
+install_dtb: $(INSTALL_DTB)
 dtbs:    $(INSTALL_DTB)
 modules: $(LINUXHDR) $(LOCAL_KOS)
 show:
@@ -47,14 +49,20 @@ $(BACKUP): ./Makefile
 clean:
 	cd bcm && $(MAKE) -C $(LINUXHDR) M=$$PWD clean
 	cd codecs && $(MAKE) -C $(LINUXHDR) M=$$PWD clean
-	rm -f overlays/*.dtbo overlays/*.dtb
-	
+	rm -f overlays/*.dtbo overlays/*.dtb dry_run.*
+
 clean_install: clean
 	sudo rm -f $(INSTALL_KOS) $(INSTALL_DTB)
 
 uninstall:
 	sudo dtoverlay -v -r jedac5
 	sudo modprobe -v -r snd-soc-jedac5_codec snd-soc-jedac5_bcm
+
+dry_run.lst: dry_run.dtbo
+	fdtdump $< > $@
+
+dry_run.dtbo: $(INSTALL_DTB)
+	sudo dtoverlay -D -v jedac5
 
 $(INSTALLDIR)/snd-soc-jedac5_bcm.ko: bcm/snd-soc-jedac5_bcm.ko
 	cd bcm && sudo $(MAKE) -C $(LINUXHDR) M=$$PWD modules_install
