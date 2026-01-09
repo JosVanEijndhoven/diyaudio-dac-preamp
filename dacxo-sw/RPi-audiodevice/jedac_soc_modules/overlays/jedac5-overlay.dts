@@ -9,7 +9,7 @@
 /plugin/;
 
 / {
-	compatible = "brcm,bcm2708";
+	compatible = "brcm,bcm2710";
 
 
 	fragment@0 {
