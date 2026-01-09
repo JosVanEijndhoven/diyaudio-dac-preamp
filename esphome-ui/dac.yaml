@@ -42,7 +42,7 @@
 #                       bit[3,2]: sample rate in master mode
 #                                 input select in slave mode
 #                       bit1: master_base48
-#                       bit0: master_mode, not slave
+#                       bit0: master_mode, not slave. In master_mode, use i2s input else use s/pdif.
 #                 0x31  bit[7,1]: unused
 #                       bit0: att20db  1: 20dB attenuation on analog audio out, 0: no attenuation
 #     readonly:   0x34  bit7: almost_full

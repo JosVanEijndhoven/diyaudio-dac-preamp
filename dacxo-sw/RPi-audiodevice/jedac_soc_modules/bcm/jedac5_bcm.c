@@ -28,6 +28,7 @@
 #include <linux/platform_device.h>
 #include <linux/sched.h>
 #include <linux/printk.h>
+#include <linux/gpio/consumer.h>
 
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -130,9 +131,9 @@ static int my_info_volsw(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_info
 {
 	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
 	uinfo->count = 2;
-    uinfo->value.integer.min = -1 * DAC_max_attenuation_dB;
-    uinfo->value.integer.max = 0;
-    uinfo->value.integer.step = DAC_step_attenuation_dB;
+  uinfo->value.integer.min = -1 * DAC_max_attenuation_dB;
+  uinfo->value.integer.max = 0;
+  uinfo->value.integer.step = DAC_step_attenuation_dB;
 	
 	return 0;
 }
@@ -214,8 +215,8 @@ static int snd_rpi_jedac5_startup(struct snd_pcm_substream *substream) {
 	struct snd_soc_component *component = snd_soc_rtd_to_codec(rtd, 0)->component;
 	// struct snd_soc_codec *codec = rtd->codec;
 	// const char* name = codec ? codec->component.name : "NULL";
-	// snd_soc_write(codec, REGDAC_GPO0, GPO0_POWERUP | GPO0_SPIMASTER);
-	snd_soc_component_write(component, REGDAC_GPO0, GPO0_POWERUP | GPO0_SPIMASTER);
+	// snd_soc_write(codec, REGDAC_GPO0, GPO0_POWERUP | GPO0_CLKMASTER);
+	snd_soc_component_write(component, REGDAC_GPO0, GPO0_POWERUP | GPO0_CLKMASTER);
 	pr_info("jedac5_bcm:snd_rpi_jedac5_startup(): codec=%s powerup!\n", component->name);
 	return 0;
 }
@@ -330,7 +331,34 @@ static int snd_rpi_jedac5_probe(struct platform_device *pdev)
 	struct device_node *np = pdev->dev.of_node;
 	jedac5_sound_card.dev = &pdev->dev;
 	
-	pr_info("jedac5_bcm: snd_rpi_jedac5_probe()\n");
+	pr_info("jedac5_bcm: start probe()\n");
+
+	// Allocate private memory managed by the device
+  struct jedac5_bcm_priv* priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
+  if (!priv) {
+		pr_err("jedac5_bcm: probe() failed to alloc priv struct!\n");
+    return -ENOMEM;
+	}
+	snd_soc_card_set_drvdata(&jedac5_sound_card, priv);
+
+	// Obtain access to the gpio pin "uisync" to send signals to the UI controller
+	#if 1
+	// The "uisync" name and its gpio pin are defined in the DTS overlay file
+	priv->uisync_gpio = devm_gpiod_get(&pdev->dev, "uisync", GPIOD_OUT_HIGH_OPEN_DRAIN);
+	if (IS_ERR(priv->uisync_gpio)) {
+		pr_err("jedac5_bcm: failed to access the 'uisync' gpio pin!\n");
+		return -EINVAL;
+	} else {
+		pr_err("jedac5_bcm: successfully acquired 'uisync' gpio pin!\n");
+	}
+
+#else
+  // legacy method to access gpio
+  int g = gpio_request_one( GPIO_UI_TRIG, GPIOF_OUT_INIT_LOW, "dac_ui_trig");
+	pr_info("jedac5_bcm: request ownershio gpio %d: %s\n",
+	  GPIO_UI_TRIG, ((g == 0) ? "OK" : "DENY"));
+#endif
+
 
 	if (np) {	
 		int i;
@@ -386,12 +414,11 @@ static int snd_rpi_jedac5_probe(struct platform_device *pdev)
 	    }
 		}
 	}
-	
+
 	ret = snd_soc_register_card(&jedac5_sound_card);
 	if (ret)
-		dev_err(&pdev->dev,
-			"snd_soc_register_card() failed: %d\n", ret);
-	
+		dev_err(&pdev->dev,	"snd_soc_register_card() failed: %d\n", ret);
+
 	pr_info("jedac5_bcm: snd_rpi_jedac5_probe() returns %d\n", ret);
 
 	return ret;
@@ -407,7 +434,8 @@ static void snd_rpi_jedac5_remove(struct platform_device *pdev)
 	}
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
 	if (card) {
-		kfree(&card->drvdata);
+		struct jedac5_bcm_priv *priv = snd_soc_card_get_drvdata(card);
+		gpiod_set_value(priv->uisync_gpio, 1);  // just for safety: deactivate
 		snd_soc_unregister_card(card); // or use: &edac5_sound_card
 	}
 }
@@ -443,7 +471,7 @@ module_platform_driver(snd_rpi_jedac5_driver);
 static int jedac_await_powerup(void)
 {
 	struct snd_soc_component *comp = get_rtd_component();
-	const unsigned char mode_reg = GPO0_POWERUP | GPO0_SPIMASTER;
+	const unsigned char mode_reg = GPO0_POWERUP | GPO0_CLKMASTER;
 	const signed long delay = 50 * HZ / 1000; // 50 milliseconds per iteration
 	const int max_cnt = 60; // max allowed iterations until timeout error, expected is 6
 	int cnt, i2cerr;
@@ -538,21 +566,12 @@ static int jedac_mode_init(struct snd_soc_component *codec)
   char reg_chan;
 	int i2cerr = 0;
 	
-	pr_info("jedac5_bcm: jedac_mode_init(codec=%p)\n", (void *)codec);
+	pr_info("jedac5_bcm: jedac_mode_init(codec=%p) set power & master\n", (void *)codec);
 	if (!codec)
 			return -99;
 
-#ifdef CS8416_SWMODE
-  reg_chan = 0x80 | (chan << 3) | chan;
-  i2cerr = snd_soc_write(codec, 0x01, 0x06) // mute on err, rmck=128Fs
-        || snd_soc_write(codec, 0x02, 0x05) // set RERR (is UNLOCK) to gpo0 output
-        || snd_soc_write(codec, 0x05, 0x80) // 24-bit data, left justified,
-        || snd_soc_write(codec, 0x06, 0x10) // unmask the LOCK error
-        || snd_soc_write(codec, 0x04, reg_chan); // select input and start RUN mode
-#else
-	reg_chan = GPO0_POWERUP | GPO0_SPIMASTER;
+	reg_chan = GPO0_POWERUP | GPO0_CLKMASTER;
 	i2cerr = snd_soc_component_write(codec, REGDAC_GPO0, reg_chan);
-#endif
 	
 	priv = snd_soc_component_get_drvdata(codec);
 	if (priv) {
@@ -669,17 +688,22 @@ static int jedac_i2c_set_i2s(int samplerate)
 			freq_mult = 0; // illegal/unsupported samplerate
 	}
 	
-	gpo_val = GPO0_POWERUP | GPO0_SPIMASTER | (freq_base << 1) | (freq_mult << 2);
+	// send a trigger to the ui controller: denote a busy i2c and changed dac settings
+	struct jedac5_bcm_priv *priv = snd_soc_card_get_drvdata(&jedac5_sound_card);
+	if (0 == gpiod_get_value(priv->uisync_gpio)) {
+		pr_warn("jedac5_bcm: jedac_i2c_set_i2s: unexpected 'low' on ui-trig gpio!");
+	}
+	gpiod_set_value(priv->uisync_gpio, 0);
+
+	gpo_val = GPO0_POWERUP | GPO0_CLKMASTER | (freq_base << 1) | (freq_mult << 2);
 	i2cerr = snd_soc_component_write(codec, REGDAC_GPO0, gpo_val);
 	// as test, read-back fpga status byte
 	gpo_val = snd_soc_component_read(codec, REGDAC_GPI0);
 	if (gpo_val < 0) // values >=0 indicate valid read, no error
 		i2cerr = gpo_val;
-		
+
+	gpiod_set_value(priv->uisync_gpio, 1);  // clear the ui trigger pulse
 	pr_info("jedac5_bcm: jedac_i2c_set_i2s: read GPI=0x%02x. i2c err=%d\n", (int)(gpo_val & 0xff), i2cerr);
-	//if (i2cerr) {
-	//	pr_info("jedac5_bcm: jedac_i2c_set_i2s: read GPI=0x%02x. i2c err=%d!\n", i2c_err);
-	//}
 
 	return i2cerr;
 }

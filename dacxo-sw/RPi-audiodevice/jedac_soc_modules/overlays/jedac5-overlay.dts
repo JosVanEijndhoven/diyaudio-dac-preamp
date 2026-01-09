@@ -1,6 +1,9 @@
 // Definitions for Jos van Eijndhoven's DAC "jedac5"
 // intended to be attached to a Raspberry Pi
 // January 2016
+//
+// For info on dts files see:
+// https://www.raspberrypi.com/documentation/computers/configuration.html#device-trees-overlays-and-parameters
 
 /dts-v1/;
 /plugin/;
@@ -49,6 +52,17 @@
 	};
 	
 	fragment@2 {
+    target = <&gpio>;
+    __overlay__ {
+      jedac_pins: jedac_pins {
+        brcm,pins = <27>;     /* BCM GPIO number */
+        brcm,function = <0>;  /* 0:in, 1:out, 2:alt5, etc. */
+        brcm,pull = <2>;      /* 0:none, 1:down, 2:up */
+      };
+    };
+  };
+
+	fragment@3 {
 		target = <&sound>;
 		__overlay__ {
 			compatible = "jve,jedac5_bcm";
@@ -59,8 +73,15 @@
 			jve,dac_core = <&jedac_core>;
 			jve,dac_l = <&jedac_dacl>;
 			jve,dac_r = <&jedac_dacr>;
+			pinctrl-names = "default";
+      pinctrl-0 = <&jedac_pins>;
 			status = "okay";
+
+      // define 'uisync' as name to find in the driver
+			uisync-gpios = <&gpio 27 GPIO_OPEN_DRAIN | GPIO_PULL_UP>;
 		};
 	};
+
+
 
 };

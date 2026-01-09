@@ -42,6 +42,7 @@
 #include "jedac5.h"
 
 static const struct reg_default jedac5_reg_defaults[] = {
+#ifdef CS8416_SWMODE
 	{ REGDAC_control0,      0x00 },
 	{ REGDAC_control1,      0x00 },
 	{ REGDAC_control2,      0x00 },
@@ -55,31 +56,43 @@ static const struct reg_default jedac5_reg_defaults[] = {
 	{ REGDAC_RecvChanStat,  0x00 },
 	{ REGDAC_AudioFmtDect,  0x00 },
 	{ REGDAC_RecvErr,       0x00 },
+#else
 	{ REGDAC_GPO0,          0x00 },
 	{ REGDAC_GPO1,          0x00 },
 	{ REGDAC_GPI0,          0x00 },
 	{ REGDAC_GPI1,          0x00 },
+#endif
 };
 
 static bool jedac5_readable(struct device *dev, unsigned int reg)
 {
-	return reg <= REGDAC_MAX || reg == REGDAC_GPO0 || reg == REGDAC_GPO1
-		       || reg == REGDAC_GPI0 || reg == REGDAC_GPI1;
+	#ifdef CS8416_SWMODE
+	return reg <= REGDAC_MAX
+	#else
+	return true;
+	#endif
 }
 
 static bool jedac5_writeable(struct device *dev, unsigned int reg)
 {
-	return reg <= REGDAC_IntModeLSB || reg == REGDAC_GPO0 || reg == REGDAC_GPO1;
+	#ifdef CS8416_SWMODE
+	return reg <= REGDAC_IntModeLSB;
+	#else
+	return (reg == REGDAC_GPO0) || (reg == REGDAC_GPO1);
+	#endif
 }
 
 static bool jedac5_volatile(struct device *dev, unsigned int reg)
 {
 	switch (reg) {
+#ifdef CS8416_SWMODE
 	case REGDAC_RecvChanStat: // later read might show new values
 	case REGDAC_AudioFmtDect:  // later read might show new values
 	case REGDAC_RecvErr:      // reading resets bits as sideeffect
+#else
 	case REGDAC_GPI0:		  // run-time status sample
 	case REGDAC_GPI1:		  // run-time status sample
+#endif
 		return true;
 	default:
 		return false;
@@ -138,7 +151,8 @@ static struct snd_soc_dai_driver jedac5_dai = {
 
 static int jedac5_probe(struct snd_soc_component *component)
 {
-	pr_info("jedac5_probe() codec start\n");
+	pr_info("jedac5_probe(): component \"%s\"\n",
+	  (component && component->name) ? component->name : "NULL");
 
 	return 0;
 }
@@ -183,7 +197,7 @@ static int my_put_volsw(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value
 	// hmm.. the line below results in some illegal pointer, avoid such call...
 	//struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
 	
-	pr_info("jedac5_codec:my_snd_soc_put_volsw() private_value = %04lx\n",
+	pr_info("jedac5_codec:my_put_volsw() private_value = %04lx\n",
 		kcontrol->private_value);
 		
 	vol_l = abs(ucontrol->value.integer.value[0]);
@@ -212,7 +226,6 @@ static int my_put_volsw(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value
 static DECLARE_TLV_DB_SCALE(dac_db_scale, (-100 * DAC_max_attenuation_dB),
 	                        (100 * DAC_step_attenuation_dB), 1);
 
-// static int snd_soc_put_volsw(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 static const struct snd_kcontrol_new jedac5_codec_controls[] = {
 	{
 		.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
@@ -274,11 +287,12 @@ static int jedac5_i2c_probe(struct i2c_client *i2c)
 	ret = snd_soc_register_component(dev, &jedac5_codec_driver, &jedac5_dai, 1);
 	if (ret && ret != -EPROBE_DEFER) {
 		dev_err(dev, "jedac5_i2c_probe: Failed to register card, err=%d\n", ret);
-	} else {
-		pr_info("jedac5_i2c_probe: registered card driver!\n");
 	}
-
- 	pr_info("jedac5_i2c_probe: returns %d\n", ret);
+	if (!ret) {
+		pr_info("jedac5_i2c_probe: registered i2c card driver!\n");
+	} else {
+ 	  pr_info("jedac5_i2c_probe: returns %d\n", ret);
+	}
 	return ret;
 }
 
