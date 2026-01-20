@@ -399,6 +399,12 @@ static int snd_rpi_jedac5_probe(struct platform_device *pdev)
 	  dai->platforms->of_node = i2s_node;
 	}
 
+	// Fix kernel error that prevents registering my card:
+	// "pcm179x 1-004d: No cache used with register defaults set!"
+	// This fix bypasses the 'const' definition of this struct in the kernel sound/soc/codecs/pcm179x.c
+	extern struct regmap_config pcm179x_regmap_config;
+	pcm179x_regmap_config.cache_type = REGCACHE_MAPLE;
+
 	ret = devm_snd_soc_register_card(&pdev->dev, &jedac5_sound_card);
 	const char *msg = (ret == 0) ? "Success" :
 	                  (ret == -EINVAL) ? "Incomplete snd_soc_card struct?" :
