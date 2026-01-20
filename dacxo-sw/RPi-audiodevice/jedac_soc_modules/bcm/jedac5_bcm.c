@@ -323,7 +323,11 @@ static struct snd_soc_component* get_rtd_component(void) {
 	return NULL;
 }
 
-/* sound card test */
+/* sound card detect */
+// see for instance examples like:
+// https://github.com/raspberrypi/linux/blob/rpi-6.12.y/sound/soc/bcm/hifiberry_dacplus.c
+// or, for a card with two codes like me:
+// https://github.com/raspberrypi/linux/blob/rpi-6.12.y/sound/soc/bcm/pifi-40.c
 static int snd_rpi_jedac5_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -342,7 +346,6 @@ static int snd_rpi_jedac5_probe(struct platform_device *pdev)
 	snd_soc_card_set_drvdata(&jedac5_sound_card, priv);
 
 	// Obtain access to the gpio pin "uisync" to send signals to the UI controller
-	#if 1
 	// The "uisync" name and its gpio pin are defined in the DTS overlay file
 	priv->uisync_gpio = devm_gpiod_get(&pdev->dev, "uisync", GPIOD_OUT_HIGH_OPEN_DRAIN);
 	if (IS_ERR(priv->uisync_gpio)) {
@@ -352,20 +355,12 @@ static int snd_rpi_jedac5_probe(struct platform_device *pdev)
 		pr_err("jedac5_bcm: successfully acquired 'uisync' gpio pin!\n");
 	}
 
-#else
-  // legacy method to access gpio
-  int g = gpio_request_one( GPIO_UI_TRIG, GPIOF_OUT_INIT_LOW, "dac_ui_trig");
-	pr_info("jedac5_bcm: request ownershio gpio %d: %s\n",
-	  GPIO_UI_TRIG, ((g == 0) ? "OK" : "DENY"));
-#endif
-
-
 	if (np) {	
 		int i;
 	  struct device_node *i2s_node, *pcm_node;
 		struct device_node *i2c_codec_node = NULL;
 
-		/* find my three i2c components on the dac board */
+		/* find my three i2c components on the dac board: an FPGA and two PCM1792 */
 		for (i=0; i<3; i++) {
 			const char *handle = i2c_node_refs[i];
 			pcm_node = of_parse_phandle(np, handle, 0);
@@ -391,36 +386,28 @@ static int snd_rpi_jedac5_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "jedac5_bcm: i2s_node not found!\n");
 			return -EINVAL;
 		}
-		struct snd_soc_dai_link *dai = &jedac5_dai_link[0];
-		if (!dai) {
-			dev_err(&pdev->dev, "jedac5_bcm: dai not found!\n");
-			return -EINVAL;
-		}
 
-	  if (i2s_node && dai) {
-		  pr_info("jedac5_bcm: dai num_cpus=%u, num_platforms=%u, num_codecs=%u\n",
-			  dai->num_cpus, dai->num_platforms, dai->num_codecs);
-			if (dai->num_cpus > 0) {
-			  dai->cpus[0].name = NULL;
-			  dai->cpus[0].of_node = i2s_node;
-			}
-			if (dai->num_platforms > 0) {
-			  dai->platforms[0].name = NULL;
-			  dai->platforms[0].of_node = i2s_node;
-			}
-			if (dai->num_codecs > 0) {
-			  dai->codecs[0].name = NULL;
-			  dai->codecs[0].of_node = i2c_codec_node;
-	    }
-		}
+		// We have one i2s 'digital audio interface' towards the board FPGA
+	  struct snd_soc_dai_link *dai = &jedac5_dai_link[0];
+	  pr_info("jedac5_bcm: dai num_cpus=%u, num_platforms=%u, num_codecs=%u\n",
+	  dai->num_cpus, dai->num_platforms, dai->num_codecs);
+	  dai->cpus->dai_name = NULL;
+	  dai->cpus->of_node = i2s_node;
+	  dai->platforms->name = NULL;
+	  dai->platforms->of_node = i2s_node;
 	}
 
-	ret = snd_soc_register_card(&jedac5_sound_card);
-	if (ret)
-		dev_err(&pdev->dev,	"snd_soc_register_card() failed: %d\n", ret);
-
-	pr_info("jedac5_bcm: snd_rpi_jedac5_probe() returns %d\n", ret);
-
+	ret = devm_snd_soc_register_card(&pdev->dev, &jedac5_sound_card);
+	const char *msg = (ret == 0) ? "Success" :
+	                  (ret == -EINVAL) ? "Incomplete snd_soc_card struct?" :
+										(ret == -ENODEV) ? "Linked component not found?" :
+										(ret != -EPROBE_DEFER) ? "Deferred" : "Failure";
+	
+	if (ret && (ret != -EPROBE_DEFER)) {
+    dev_err(&pdev->dev, "jedac5_bcm: probe: register_card error: \"%s\", return %d\n", msg, ret);
+	} else {
+		pr_info("jedac5_bcm: probe: register_card: \"%s\", return %d\n", msg, ret);
+	}
 	return ret;
 }
 
@@ -436,7 +423,6 @@ static void snd_rpi_jedac5_remove(struct platform_device *pdev)
 	if (card) {
 		struct jedac5_bcm_priv *priv = snd_soc_card_get_drvdata(card);
 		gpiod_set_value(priv->uisync_gpio, 1);  // just for safety: deactivate
-		snd_soc_unregister_card(card); // or use: &edac5_sound_card
 	}
 }
 

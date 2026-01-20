@@ -114,7 +114,7 @@ const struct regmap_config jedac5_regmap_config = {
 static int jedac5_set_dai_fmt(struct snd_soc_dai *codec_dai,
                              unsigned int format)
 {
-	pr_info("jedac5_set_dai_fmt(format=%u) dummy\n", format);
+	pr_info("jedac5_codec set_dai_fmt(format=%u) dummy\n", format);
 	return 0;
 }
 
@@ -122,13 +122,13 @@ static int jedac5_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params,
 			     struct snd_soc_dai *dai)
 {
-	pr_info("jedac5_hw_params( rate=%d) dummy\n", params_rate(params));
+	pr_info("jedac5_codec hw_params( rate=%d) dummy\n", params_rate(params));
 	return 0;
 }
 
 static int jedac5_digital_mute(struct snd_soc_dai *dai, int mute, int )
 {
-	pr_info("jedac5_digital_mute( mute=%d) dummy\n", mute);
+	pr_info("jedac5_codec digital_mute( mute=%d) dummy\n", mute);
 	return 0;
 }
 
@@ -151,7 +151,7 @@ static struct snd_soc_dai_driver jedac5_dai = {
 
 static int jedac5_probe(struct snd_soc_component *component)
 {
-	pr_info("jedac5_probe(): component \"%s\"\n",
+	pr_info("jedac5_codec probe(): component \"%s\"\n",
 	  (component && component->name) ? component->name : "NULL");
 
 	return 0;
@@ -159,7 +159,7 @@ static int jedac5_probe(struct snd_soc_component *component)
 
 static void jedac5_remove(struct snd_soc_component *component)
 {
-	pr_info("jedac5_remove() codec\n");
+	pr_info("jedac5_codec remove() codec\n");
 
 	// pm_runtime_disable(dev); ??
 }
@@ -197,7 +197,7 @@ static int my_put_volsw(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value
 	// hmm.. the line below results in some illegal pointer, avoid such call...
 	//struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
 	
-	pr_info("jedac5_codec:my_put_volsw() private_value = %04lx\n",
+	pr_info("jedac5_codec my_put_volsw() private_value = %04lx\n",
 		kcontrol->private_value);
 		
 	vol_l = abs(ucontrol->value.integer.value[0]);
@@ -268,7 +268,7 @@ static int jedac5_i2c_probe(struct i2c_client *i2c)
  	struct regmap *regmap;
 	int ret = 0;
 	
-	pr_info("jedac5_i2c_probe(name=\"%s\", addr=0x%02x)\n", i2c->name, (i2c->addr & 0x7f));
+	pr_info("jedac5_codec i2c_probe(name=\"%s\", addr=0x%02x)\n", i2c->name, (i2c->addr & 0x7f));
 
 	regmap = devm_regmap_init_i2c(i2c, &jedac5_regmap_config);
 	if (IS_ERR(regmap)) {
@@ -286,12 +286,12 @@ static int jedac5_i2c_probe(struct i2c_client *i2c)
 
 	ret = snd_soc_register_component(dev, &jedac5_codec_driver, &jedac5_dai, 1);
 	if (ret && ret != -EPROBE_DEFER) {
-		dev_err(dev, "jedac5_i2c_probe: Failed to register card, err=%d\n", ret);
+		dev_err(dev, "jedac5_codec i2c_probe: Failed to register card, err=%d\n", ret);
 	}
 	if (!ret) {
-		pr_info("jedac5_i2c_probe: registered i2c card driver!\n");
+		pr_info("jedac5_codec i2c_probe: registered i2c card driver!\n");
 	} else {
- 	  pr_info("jedac5_i2c_probe: returns %d\n", ret);
+ 	  pr_info("jedac5_codec i2c_probe: returns %d\n", ret);
 	}
 	return ret;
 }
@@ -299,7 +299,7 @@ static int jedac5_i2c_probe(struct i2c_client *i2c)
 static void jedac5_i2c_remove(struct i2c_client *i2c)
 {
 	const char i2c_standby[] = {REGDAC_GPO0, 0x00};
-	pr_info("jedac5_i2c_remove(), DAC power-down\n");
+	pr_info("jedac5_codec i2c_remove(), DAC power-down\n");
 	
 	// power-down the DAC board to stand-by
 	i2c_master_send(i2c, i2c_standby, 2);
@@ -335,7 +335,7 @@ static int __init jedac5_modinit(void)
 	int ret = 0;
 	ret = i2c_add_driver(&jedac5_i2c_driver);
 	if (ret != 0) {
-		printk(KERN_ERR "Failed to register jedac5 I2C driver: %d\n",
+		printk(KERN_ERR "jedac5_codec modinit: Failed to register i2c driver: %d\n",
 		       ret);
 	}
 

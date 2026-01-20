@@ -67,9 +67,6 @@
 		__overlay__ {
 			compatible = "jve,jedac5_bcm";
 			i2s-controller = <&i2s>;
-//			jve,jedac_core = <&recvr>;
-//			jve,jedac_l = <&dacl>;
-//			jve,jedac_r = <&dacr>;
 			jve,dac_core = <&jedac_core>;
 			jve,dac_l = <&jedac_dacl>;
 			jve,dac_r = <&jedac_dacr>;
