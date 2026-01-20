@@ -66,33 +66,19 @@ static const struct reg_default jedac5_reg_defaults[] = {
 
 static bool jedac5_readable(struct device *dev, unsigned int reg)
 {
-	#ifdef CS8416_SWMODE
-	return reg <= REGDAC_MAX
-	#else
 	return true;
-	#endif
 }
 
 static bool jedac5_writeable(struct device *dev, unsigned int reg)
 {
-	#ifdef CS8416_SWMODE
-	return reg <= REGDAC_IntModeLSB;
-	#else
 	return (reg == REGDAC_GPO0) || (reg == REGDAC_GPO1);
-	#endif
 }
 
 static bool jedac5_volatile(struct device *dev, unsigned int reg)
 {
 	switch (reg) {
-#ifdef CS8416_SWMODE
-	case REGDAC_RecvChanStat: // later read might show new values
-	case REGDAC_AudioFmtDect:  // later read might show new values
-	case REGDAC_RecvErr:      // reading resets bits as sideeffect
-#else
 	case REGDAC_GPI0:		  // run-time status sample
 	case REGDAC_GPI1:		  // run-time status sample
-#endif
 		return true;
 	default:
 		return false;

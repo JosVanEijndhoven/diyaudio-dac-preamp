@@ -34,18 +34,19 @@ static const struct reg_default pcm1792a_reg_defaults[] = {
 	{ 0x17, 0x00 },
 };
 
-static bool pcm1792a_accessible_reg(struct device *dev, unsigned int reg)
+static bool pcm1792a_readable_reg(struct device *, unsigned int reg)
 {
 	return reg >= 0x10 && reg <= 0x17;
 }
 
-static bool pcm1792a_writeable_reg(struct device *dev, unsigned register reg)
+static bool pcm1792a_writeable_reg(struct device *, unsigned int reg)
 {
-	bool accessible;
+	return reg >= 0x10 && reg <= 0x15;
+}
 
-	accessible = pcm1792a_accessible_reg(dev, reg);
-
-	return accessible && reg != 0x16 && reg != 0x17;
+static bool pcm1792a_volatile_reg(struct device *, unsigned int reg)
+{
+	return reg == 0x16;
 }
 
 struct pcm1792a_private {
@@ -59,26 +60,33 @@ static struct snd_soc_dai_driver pcm1792a_dai = {
 };
 
 static const struct regmap_config pcm1792a_regmap = {
-	.reg_bits		= 8,
-	.val_bits		= 8,
-	.max_register		= 23,
-	.reg_defaults		= pcm1792a_reg_defaults,
+	.reg_bits		      = 8,
+	.val_bits		      = 8,
+	.max_register		  = 0x17,
+	.reg_defaults		  = pcm1792a_reg_defaults,
 	.num_reg_defaults	= ARRAY_SIZE(pcm1792a_reg_defaults),
 	.writeable_reg		= pcm1792a_writeable_reg,
-	.readable_reg		= pcm1792a_accessible_reg,
+	.readable_reg		  = pcm1792a_readable_reg,
+	.volatile_reg     = pcm1792a_volatile_reg,
+	.cache_type       = REGCACHE_MAPLE
 };
 
-static struct snd_soc_codec_driver soc_codec_dev_pcm1792a = {
+static int pcm1792a_probe(struct snd_soc_component *component)
+{
+	pr_info("pcm1792a_codec probe(): component \"%s\"\n",
+	  (component && component->name) ? component->name : "NULL");
+
+	return 0;
+}
+
+static struct snd_soc_component_driver soc_codec_dev_pcm1792a = {
+	.name           = "pcm1792a-i2c",
+	.probe          = pcm1792a_probe,
 	//.controls			= pcm1792a_controls,
 	.num_controls		= 0,//ARRAY_SIZE(pcm1792a_controls),
-	//.dapm_widgets		= pcm1792a_dapm_widgets,
-	.num_dapm_widgets	= 0, //ARRAY_SIZE(pcm1792a_dapm_widgets),
-	//.dapm_routes		= pcm1792a_dapm_routes,
-	.num_dapm_routes	= 0, //ARRAY_SIZE(pcm1792a_dapm_routes),
 };
 
-static int pcm1792a_i2c_probe(struct i2c_client *i2c,
-			     const struct i2c_device_id *id)
+static int pcm1792a_i2c_probe(struct i2c_client *i2c)
 {
 	struct regmap *regmap;
 	struct regmap_config config = pcm1792a_regmap;
@@ -86,7 +94,7 @@ static int pcm1792a_i2c_probe(struct i2c_client *i2c,
 	struct device *dev = &i2c->dev;
 	int ret = 0;
 	
-	pr_info("pcm1792a-i2c: pcm1792a_i2c_probe(name=\"%s\", addr=0x%02x) jedac codec start\n",
+	pr_info("pcm1792a-i2c: probe(name=\"%s\", addr=0x%02x)\n",
 	        i2c->name, (i2c->addr & 0x7f));
 
 	// msb needs to be set to enable auto-increment of addresses
@@ -100,8 +108,7 @@ static int pcm1792a_i2c_probe(struct i2c_client *i2c,
 		return ret;
 	}
 
-	pcm1792a = devm_kzalloc(dev, sizeof(struct pcm1792a_private),
-				GFP_KERNEL);
+	pcm1792a = devm_kzalloc(dev, sizeof(struct pcm1792a_private), GFP_KERNEL);
 	if (!pcm1792a)
 		return -ENOMEM;
 
@@ -109,19 +116,22 @@ static int pcm1792a_i2c_probe(struct i2c_client *i2c,
 
 	pcm1792a->regmap = regmap;
 
-	ret = snd_soc_register_codec(dev,
-			&soc_codec_dev_pcm1792a, &pcm1792a_dai, 1);
-
-	pr_info("pcm1792a-i2c: pcm1792a_i2c_probe() jedac returns %d\n", ret);
-	
+	ret = snd_soc_register_component(dev, &soc_codec_dev_pcm1792a, &pcm1792a_dai, 1);
+	if (ret && ret != -EPROBE_DEFER) {
+		dev_err(dev, "pcm1792a-i2c probe: Failed to register card \"%s\", err=%d\n", i2c->name, ret);
+	}
+	if (!ret) { 
+		pr_info("pcm1792a-i2c probe: registered i2c card driver \"%s\", success!\n", i2c->name);
+	} else {
+ 	  pr_info("pcm1792a-i2c probe: register i2c card driver \"%s\" returns %d\n",i2c->name, ret);
+	}
 	return ret;
 }
 
-static int pcm1792a_i2c_remove(struct i2c_client *i2c)
+static void pcm1792a_i2c_remove(struct i2c_client *i2c)
 {
 	pr_info("pcm1792a-i2c: pcm1792a_i2c_remove(\"%s\")\n", i2c->name);
-	snd_soc_unregister_codec(&i2c->dev);
-	return 0;
+	snd_soc_unregister_component(&i2c->dev);
 }
 
 static const struct i2c_device_id pcm1792a_i2c_ids[] = {

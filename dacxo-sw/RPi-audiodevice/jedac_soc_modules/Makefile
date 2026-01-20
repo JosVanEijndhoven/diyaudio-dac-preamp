@@ -16,6 +16,7 @@ KERNEL     ?= kernel7
 export KERNEL
 
 LOCAL_KOS  := codecs/snd-soc-jedac5_codec.ko \
+              codecs/snd-soc-pcm1792a-i2c.ko \
               bcm/snd-soc-jedac5_bcm.ko
 
 INSTALL_KOS := $(addprefix $(INSTALLDIR)/,$(notdir $(LOCAL_KOS)))
@@ -56,7 +57,7 @@ clean_install: clean
 
 uninstall:
 	sudo dtoverlay -v -r jedac5
-	sudo modprobe -v -r snd-soc-jedac5_codec snd-soc-jedac5_bcm
+	sudo modprobe -v -r snd-soc-jedac5_codec snd-soc-pcm1792a-i2c snd-soc-jedac5_bcm
 
 dry_run.lst: dry_run.dtbo
 	fdtdump $< > $@
@@ -73,14 +74,14 @@ $(INSTALLDIR)/snd-soc-%.ko: codecs/snd-soc-%.ko
 $(INSTALL_INITD): etc/init.d.jedac
 	sudo cp $< $@ && sudo chmod 0755 $@
 
-bcm/snd-soc-jedac5_bcm.ko: bcm/jedac5_bcm.c codecs/jedac5.h
+bcm/snd-soc-jedac5_bcm.ko: bcm/jedac5_bcm.c codecs/jedac5.h codecs/pcm1792a.h
 	cd bcm && $(MAKE) -C $(LINUXHDR) M=$$PWD modules
 
 codecs/snd-soc-jedac5_codec.ko: codecs/jedac5_codec.c codecs/jedac5.h
 	cd codecs && $(MAKE) -C $(LINUXHDR) M=$$PWD modules
 
-# codecs/snd-soc-pcm1792%.ko: codecs/pcm1792%.c codecs/pcm1792a.h
-# 	cd codecs && $(MAKE) -C $(LINUXHDR) M=$$PWD modules
+codecs/snd-soc-pcm1792%.ko: codecs/pcm1792%.c codecs/pcm1792a.h
+	cd codecs && $(MAKE) -C $(LINUXHDR) M=$$PWD modules
 
 $(LINUXHDR):
 	@echo "Missing: $(LINUXHDR)"

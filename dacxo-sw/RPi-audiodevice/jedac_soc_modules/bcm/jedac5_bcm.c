@@ -84,7 +84,7 @@ static struct snd_soc_aux_dev jedac5_aux_devs[] = {
 		.dlc = {
       // .name = "pcm1792a_l",
 			// .dai_name = ...
-		  .name = "pcm179x.1-004d", // bus addr 9a div 2: left channel
+		  .name = "pcm1792a.1-004d", // bus addr 9a div 2: left channel
 		},
 		.init = jedac_pcm1792_init_l,
 	},
@@ -92,7 +92,7 @@ static struct snd_soc_aux_dev jedac5_aux_devs[] = {
 		.dlc = {
 		  // .name = "pcm1792a_r",
 		  // .dai_name = "pcm179x.1-4c", // bus addr 98 div 2: right channel
-		  .name = "pcm179x.1-004c", // bus addr 98 div 2: right channel
+		  .name = "pcm1792a.1-004c", // bus addr 98 div 2: right channel
 		},
 		.init = jedac_pcm1792_init_r,
 	},
@@ -398,12 +398,6 @@ static int snd_rpi_jedac5_probe(struct platform_device *pdev)
 	  dai->platforms->name = NULL;
 	  dai->platforms->of_node = i2s_node;
 	}
-
-	// Fix kernel error that prevents registering my card:
-	// "pcm179x 1-004d: No cache used with register defaults set!"
-	// This fix bypasses the 'const' definition of this struct in the kernel sound/soc/codecs/pcm179x.c
-	extern struct regmap_config pcm179x_regmap_config;
-	pcm179x_regmap_config.cache_type = REGCACHE_MAPLE;
 
 	ret = devm_snd_soc_register_card(&pdev->dev, &jedac5_sound_card);
 	const char *msg = (ret == 0) ? "Success" :

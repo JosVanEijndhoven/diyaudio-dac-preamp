@@ -1,2 +1,3 @@
-obj-m := snd-soc-jedac5_codec.o
+obj-m := snd-soc-jedac5_codec.o snd-soc-pcm1792a-i2c.o
 snd-soc-jedac5_codec-y := jedac5_codec.o
+snd-soc-pcm1792a-i2c-y := pcm1792a-i2c.o
