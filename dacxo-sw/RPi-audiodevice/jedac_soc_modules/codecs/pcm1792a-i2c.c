@@ -89,7 +89,6 @@ static struct snd_soc_component_driver soc_codec_dev_pcm1792a = {
 static int pcm1792a_i2c_probe(struct i2c_client *i2c)
 {
 	struct regmap *regmap;
-	struct regmap_config config = pcm1792a_regmap;
 	struct pcm1792a_private *pcm1792a;
 	struct device *dev = &i2c->dev;
 	int ret = 0;
@@ -101,7 +100,7 @@ static int pcm1792a_i2c_probe(struct i2c_client *i2c)
 	//config.read_flag_mask = 0x80;
 	//config.write_flag_mask = 0x80;
 
-	regmap = devm_regmap_init_i2c(i2c, &config);
+	regmap = devm_regmap_init_i2c(i2c, &pcm1792a_regmap);
 	if (IS_ERR(regmap)) {
 		ret = PTR_ERR(regmap);
 		dev_err(dev, "Failed to register i2c regmap: %d\n", ret);
