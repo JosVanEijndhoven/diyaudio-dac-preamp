@@ -81,16 +81,18 @@ static int snd_rpi_jedac5_dai_init(struct snd_soc_pcm_runtime *rtd)
 
 static struct snd_soc_aux_dev jedac5_aux_devs[] = {
 	{
-		{
-      .name = "pcm1792a_l",
-		  .dai_name = "pcm179x.1-4d", // bus addr 9a div 2: left channel
+		.dlc = {
+      // .name = "pcm1792a_l",
+			// .dai_name = ...
+		  .name = "pcm179x.1-004d", // bus addr 9a div 2: left channel
 		},
 		.init = jedac_pcm1792_init_l,
 	},
 	{
-		{
-		  .name = "pcm1792a_r",
-		  .dai_name = "pcm179x.1-4c", // bus addr 98 div 2: right channel
+		.dlc = {
+		  // .name = "pcm1792a_r",
+		  // .dai_name = "pcm179x.1-4c", // bus addr 98 div 2: right channel
+		  .name = "pcm179x.1-004c", // bus addr 98 div 2: right channel
 		},
 		.init = jedac_pcm1792_init_r,
 	},
@@ -401,7 +403,9 @@ static int snd_rpi_jedac5_probe(struct platform_device *pdev)
 	const char *msg = (ret == 0) ? "Success" :
 	                  (ret == -EINVAL) ? "Incomplete snd_soc_card struct?" :
 										(ret == -ENODEV) ? "Linked component not found?" :
-										(ret != -EPROBE_DEFER) ? "Deferred" : "Failure";
+										(ret == -ENOENT) ? "DT node or property missing?" :
+										(ret == -EIO) ? "Communication failure" :
+										(ret == -EPROBE_DEFER) ? "Deferred" : "Failure";
 	
 	if (ret && (ret != -EPROBE_DEFER)) {
     dev_err(&pdev->dev, "jedac5_bcm: probe: register_card error: \"%s\", return %d\n", msg, ret);

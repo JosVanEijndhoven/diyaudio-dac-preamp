@@ -1,6 +1,7 @@
+*.o
+*.cmd
+*.mod
 *.ko
-*.o.cmd
-*.ko.cmd
 *.mod.c
 *.dtb
 *.dtbo
