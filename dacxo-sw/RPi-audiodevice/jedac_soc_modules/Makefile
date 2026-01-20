@@ -59,6 +59,13 @@ uninstall:
 	sudo dtoverlay -v -r jedac5
 	sudo modprobe -v -r snd-soc-jedac5_codec snd-soc-pcm1792a-i2c snd-soc-jedac5_bcm
 
+test_install: $(INSTALL_KOS) $(INSTALL_DTB)
+	sudo sysctl -w kernel.printk=6
+	sudo dtoverlay -v jedac5
+	sleep 2
+	dmesg |grep 'jedac\|pcm179'
+	sudo sysctl -w kernel.printk=3
+
 dry_run.lst: dry_run.dtbo
 	fdtdump $< > $@
 
@@ -82,11 +89,6 @@ codecs/snd-soc-jedac5_codec.ko: codecs/jedac5_codec.c codecs/jedac5.h
 
 codecs/snd-soc-pcm1792%.ko: codecs/pcm1792%.c codecs/pcm1792a.h
 	cd codecs && $(MAKE) -C $(LINUXHDR) M=$$PWD modules
-
-$(LINUXHDR):
-	@echo "Missing: $(LINUXHDR)"
-	@echo "Probably requires: sudo apt-get install raspberrypi-kernel-headers"
-	false
 
 # Modified output from jedac5-overlay.dtb to jedac5.dtbo, 
 # in accordance with new debian naming policy as of version 4.4

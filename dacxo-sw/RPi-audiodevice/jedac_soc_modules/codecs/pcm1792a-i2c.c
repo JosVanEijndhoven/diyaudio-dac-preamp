@@ -68,7 +68,7 @@ static const struct regmap_config pcm1792a_regmap = {
 	.writeable_reg		= pcm1792a_writeable_reg,
 	.readable_reg		  = pcm1792a_readable_reg,
 	.volatile_reg     = pcm1792a_volatile_reg,
-	.cache_type       = REGCACHE_MAPLE
+	.cache_type       = REGCACHE_RBTREE,
 };
 
 static int pcm1792a_probe(struct snd_soc_component *component)
