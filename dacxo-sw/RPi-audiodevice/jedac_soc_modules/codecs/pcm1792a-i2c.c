@@ -140,7 +140,8 @@ static const struct i2c_device_id pcm1792a_i2c_ids[] = {
 MODULE_DEVICE_TABLE(i2c, pcm1792a_i2c_ids);
 
 static const struct of_device_id pcm1792a_of_match[] = {
-	{ .compatible = "ti,pcm1792a-i2c", },
+	// { .compatible = "ti,pcm1792a-i2c", },
+	{ .compatible = "jve,pcm1792a-i2c", },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, pcm1792a_of_match);
