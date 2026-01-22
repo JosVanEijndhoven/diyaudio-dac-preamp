@@ -134,7 +134,7 @@ static void pcm1792a_i2c_remove(struct i2c_client *i2c)
 }
 
 static const struct i2c_device_id pcm1792a_i2c_ids[] = {
-	{ "pcm1792a-i2c", 0 },
+	{ "jve1792a-i2c", 0 },
 	{ },
 };
 MODULE_DEVICE_TABLE(i2c, pcm1792a_i2c_ids);

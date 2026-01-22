@@ -22,18 +22,20 @@ LOCAL_KOS  := codecs/snd-soc-jedac5_codec.ko \
 INSTALL_KOS := $(addprefix $(INSTALLDIR)/,$(notdir $(LOCAL_KOS)))
 INSTALL_DTB := /boot/overlays/jedac5.dtbo
 INSTALL_INITD := /etc/init.d/jedac
+MODULES_ALIAS := /lib/modules/$(KERNELREV)/modules.alias
 
 .PHONY: all tar backup dtbs modules install uninstall clean clean_all
 
-install: $(INSTALL_KOS) $(INSTALL_DTB) $(INSTALL_INITD)
-install_ko: $(INSTALL_KOS)
-install_dtb: $(INSTALL_DTB)
+# install: $(INSTALL_KOS) $(INSTALL_DTB) $(INSTALL_INITD)
+install: $(INSTALL_KOS) $(INSTALL_DTB) $(MODULES_ALIAS)
+
 dtbs:    $(INSTALL_DTB)
 modules: $(LINUXHDR) $(LOCAL_KOS)
 show:
 	@echo '  LINUXHDR=' $(LINUXHDR)
 	@echo '  LINUXOVLS=' $(LINUXOVLS)
 	@echo '  KERNEL=' $(KERNEL)
+	@echo '  MODULES_ALIAS=' $(MODULES_ALIAS)
 
 tar: $(BACKUP)
 
@@ -64,13 +66,17 @@ test_dtoverlay: $(INSTALL_KOS) $(INSTALL_DTB)
 	sudo dtoverlay -v jedac5 ;\
 	sleep 2 ;\
 	sudo sysctl -w kernel.printk=3 ;\
-	dmesg | grep 'jedac\|pcm179'
+	lsmod | grep 'jedac\|pcm179\|jve'
+	dmesg | grep 'jedac\|pcm179\|jve'
 
 dry_run.lst: dry_run.dtbo
 	fdtdump $< > $@
 
 dry_run.dtbo: $(INSTALL_DTB)
 	sudo dtoverlay -D -v jedac5
+
+$(MODULES_ALIAS): $(INSTALL_KOS)
+	sudo depmod -a
 
 $(INSTALLDIR)/snd-soc-jedac5_bcm.ko: bcm/snd-soc-jedac5_bcm.ko
 	cd bcm && sudo $(MAKE) -C $(LINUXHDR) M=$$PWD modules_install
