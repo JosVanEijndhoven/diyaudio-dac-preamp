@@ -384,13 +384,16 @@ static int snd_rpi_jedac5_probe(struct platform_device *pdev)
 	  i2s_node = of_parse_phandle(np, "i2s-controller", 0);
 		if (!i2s_node) {
 			dev_err(&pdev->dev, "jedac5_bcm: i2s_node not found!\n");
-		} else
+		} else {
+			pr_info("jedac5_bcm: Found i2s handle for card\n");
 			found_nodes++;
+		}
 
 		// We have one i2s 'digital audio interface' towards the board FPGA
 	  pr_info("jedac5_bcm: dai num_cpus=%u, num_platforms=%u, num_codecs=%u\n",
 	  dai->num_cpus, dai->num_platforms, dai->num_codecs);
-	  dai->cpus->name = NULL;
+	  dai->cpus[0].name = NULL;
+	  dai->cpus[0].dai_name = NULL;
 	  dai->cpus[0].of_node = i2s_node;
 	  dai->platforms[0].name = NULL;
 	  dai->platforms[0].of_node = i2s_node;
