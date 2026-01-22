@@ -57,14 +57,14 @@ clean_install: clean
 
 uninstall:
 	sudo dtoverlay -v -r jedac5
-	sudo modprobe -v -r snd-soc-jedac5_codec snd-soc-pcm1792a-i2c snd-soc-jedac5_bcm
+	sudo modprobe -v -r snd_soc_jedac5_codec snd_soc_pcm1792a_i2c snd_soc_jedac5_bcm
 
-test_install: $(INSTALL_KOS) $(INSTALL_DTB)
-	sudo sysctl -w kernel.printk=6
-	sudo dtoverlay -v jedac5
-	sleep 2
-	dmesg |grep 'jedac\|pcm179'
-	sudo sysctl -w kernel.printk=3
+test_dtoverlay: $(INSTALL_KOS) $(INSTALL_DTB)
+	sudo sysctl -w kernel.printk=6 ;\
+	sudo dtoverlay -v jedac5 ;\
+	sleep 2 ;\
+	sudo sysctl -w kernel.printk=3 ;\
+	dmesg | grep 'jedac\|pcm179'
 
 dry_run.lst: dry_run.dtbo
 	fdtdump $< > $@
