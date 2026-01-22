@@ -390,10 +390,11 @@ static int snd_rpi_jedac5_probe(struct platform_device *pdev)
 		// We have one i2s 'digital audio interface' towards the board FPGA
 	  pr_info("jedac5_bcm: dai num_cpus=%u, num_platforms=%u, num_codecs=%u\n",
 	  dai->num_cpus, dai->num_platforms, dai->num_codecs);
-	  dai->cpus->dai_name = NULL;
+	  dai->cpus->name = NULL;
 	  dai->cpus[0].of_node = i2s_node;
-	  dai->platforms->name = NULL;
+	  dai->platforms[0].name = NULL;
 	  dai->platforms[0].of_node = i2s_node;
+		dai->codecs[0].name = NULL;
 		dai->codecs[0].of_node = i2c_codec_node;
 	}
 
