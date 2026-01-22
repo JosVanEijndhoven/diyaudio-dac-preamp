@@ -34,6 +34,7 @@ modules: $(LINUXHDR) $(LOCAL_KOS)
 show:
 	@echo '  LINUXHDR=' $(LINUXHDR)
 	@echo '  LINUXOVLS=' $(LINUXOVLS)
+	@echo '  INSTALLDIR=' $(INSTALLDIR)
 	@echo '  KERNEL=' $(KERNEL)
 	@echo '  MODULES_ALIAS=' $(MODULES_ALIAS)
 
@@ -78,10 +79,10 @@ dry_run.dtbo: $(INSTALL_DTB)
 $(MODULES_ALIAS): $(INSTALL_KOS)
 	sudo depmod -a
 
-$(INSTALLDIR)/snd-soc-jedac5_bcm.ko: bcm/snd-soc-jedac5_bcm.ko
+$(INSTALLDIR)/snd-soc-jedac5_bcm.ko: bcm/snd-soc-jedac5_bcm.ko | $(INSTALLDIR)
 	cd bcm && sudo $(MAKE) -C $(LINUXHDR) M=$$PWD modules_install
 
-$(INSTALLDIR)/snd-soc-%.ko: codecs/snd-soc-%.ko
+$(INSTALLDIR)/snd-soc-%.ko: codecs/snd-soc-%.ko  | $(INSTALLDIR)
 	cd codecs && sudo $(MAKE) -C $(LINUXHDR) M=$$PWD modules_install
 
 $(INSTALL_INITD): etc/init.d.jedac
@@ -100,6 +101,9 @@ codecs/snd-soc-jve1792%.ko: codecs/jve1792%.c codecs/pcm1792a.h
 # in accordance with new debian naming policy as of version 4.4
 $(INSTALL_DTB) : overlays/jedac5.dtbo
 	sudo cp $< $@
+
+$(INSTALLDIR):
+	sudo mkdir $@
 
 overlays/jedac5.dtbo : overlays/jedac5-overlay.dts
 	dtc -@ -I dts -O dtb -o $@ $<
