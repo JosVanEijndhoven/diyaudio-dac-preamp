@@ -9,7 +9,7 @@ PWD        := $(shell pwd)
 KERNELREV  := $(shell uname -r)
 LINUXHDR   := /usr/src/linux-headers-$(KERNELREV)
 LINUXOVLS  := $(LINUXHDR)/arch/arm64/boot/dts/overlays
-INSTALLDIR := /lib/modules/$(KERNELREV)/extra
+INSTALLDIR := /lib/modules/$(KERNELREV)/updates
 DATE       := $(shell date --rfc-3339=date)
 BACKUP     := ../jedac-rpi-$(DATE).tgz
 KERNEL     ?= kernel7
@@ -19,7 +19,7 @@ LOCAL_KOS  := codecs/snd-soc-jedac5_codec.ko \
               codecs/snd-soc-jve1792a-i2c.ko \
               bcm/snd-soc-jedac5_bcm.ko
 
-INSTALL_KOS := $(addprefix $(INSTALLDIR)/,$(notdir $(LOCAL_KOS)))
+INSTALL_KOS := $(addsuffix .xz,$(addprefix $(INSTALLDIR)/,$(notdir $(LOCAL_KOS))))
 INSTALL_DTB := /boot/overlays/jedac5.dtbo
 INSTALL_INITD := /etc/init.d/jedac
 MODULES_ALIAS := /lib/modules/$(KERNELREV)/modules.alias
@@ -79,10 +79,10 @@ dry_run.dtbo: $(INSTALL_DTB)
 $(MODULES_ALIAS): $(INSTALL_KOS)
 	sudo depmod -a
 
-$(INSTALLDIR)/snd-soc-jedac5_bcm.ko: bcm/snd-soc-jedac5_bcm.ko | $(INSTALLDIR)
+$(INSTALLDIR)/snd-soc-jedac5_bcm.ko.xz: bcm/snd-soc-jedac5_bcm.ko | $(INSTALLDIR)
 	cd bcm && sudo $(MAKE) -C $(LINUXHDR) M=$$PWD modules_install
 
-$(INSTALLDIR)/snd-soc-%.ko: codecs/snd-soc-%.ko  | $(INSTALLDIR)
+$(INSTALLDIR)/snd-soc-%.ko.xz: codecs/snd-soc-%.ko  | $(INSTALLDIR)
 	cd codecs && sudo $(MAKE) -C $(LINUXHDR) M=$$PWD modules_install
 
 $(INSTALL_INITD): etc/init.d.jedac
@@ -101,9 +101,6 @@ codecs/snd-soc-jve1792%.ko: codecs/jve1792%.c codecs/pcm1792a.h
 # in accordance with new debian naming policy as of version 4.4
 $(INSTALL_DTB) : overlays/jedac5.dtbo
 	sudo cp $< $@
-
-$(INSTALLDIR):
-	sudo mkdir $@
 
 overlays/jedac5.dtbo : overlays/jedac5-overlay.dts
 	dtc -@ -I dts -O dtb -o $@ $<

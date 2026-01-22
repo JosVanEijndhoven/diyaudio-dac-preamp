@@ -253,6 +253,8 @@ static struct snd_soc_ops snd_rpi_jedac5_ops = {
 	.shutdown = snd_rpi_jedac5_shutdown,
 };
 
+// Create references to my modules.
+// Note: the actual names are not important, they are later set to NULL during _probe()
 SND_SOC_DAILINK_DEFS(rpi_jedac5,
 	DAILINK_COMP_ARRAY(COMP_CPU("bcm2708-i2s.0")),
 	DAILINK_COMP_ARRAY(COMP_CODEC("jedac5_codec.1-0020", "jedac5_codec")), //fpga is at i2c bus 1 addr 20
