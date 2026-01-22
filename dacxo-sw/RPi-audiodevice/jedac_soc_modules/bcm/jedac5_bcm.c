@@ -72,7 +72,7 @@ static int snd_rpi_jedac5_dai_init(struct snd_soc_pcm_runtime *rtd)
 		(void *)rtd, card->name);
 	pr_info("jedac5_bcm: snd_rpi_jedac5_dai_init: dai=\"%s\", dai_fmt=0x%x\n",
 		dai->name, dai->dai_fmt);
-    // init CS8416 receiver chip
+    // init fpga chip
 	ret = jedac_mode_init(component);
 
 	pr_info("jedac5_bcm: snd_rpi_jedac5_dai_init returns %d\n", ret);
@@ -82,16 +82,12 @@ static int snd_rpi_jedac5_dai_init(struct snd_soc_pcm_runtime *rtd)
 static struct snd_soc_aux_dev jedac5_aux_devs[] = {
 	{
 		.dlc = {
-      // .name = "pcm1792a_l",
-			// .dai_name = ...
 		  .name = "pcm1792a.1-004d", // bus addr 9a div 2: left channel
 		},
 		.init = jedac_pcm1792_init_l,
 	},
 	{
 		.dlc = {
-		  // .name = "pcm1792a_r",
-		  // .dai_name = "pcm179x.1-4c", // bus addr 98 div 2: right channel
 		  .name = "pcm1792a.1-004c", // bus addr 98 div 2: right channel
 		},
 		.init = jedac_pcm1792_init_r,
@@ -332,12 +328,14 @@ static struct snd_soc_component* get_rtd_component(void) {
 // https://github.com/raspberrypi/linux/blob/rpi-6.12.y/sound/soc/bcm/pifi-40.c
 static int snd_rpi_jedac5_probe(struct platform_device *pdev)
 {
-	int ret = 0;
-	
+	int ret = -EINVAL;
+	int i;
+  int found_nodes = 0;
 	struct device_node *np = pdev->dev.of_node;
 	jedac5_sound_card.dev = &pdev->dev;
 	
 	pr_info("jedac5_bcm: start probe()\n");
+	struct snd_soc_dai_link *dai = &jedac5_dai_link[0];
 
 	// Allocate private memory managed by the device
   struct jedac5_bcm_priv* priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
@@ -358,60 +356,71 @@ static int snd_rpi_jedac5_probe(struct platform_device *pdev)
 	}
 
 	if (np) {	
-		int i;
-	  struct device_node *i2s_node, *pcm_node;
+	  struct device_node *i2s_node = NULL;
 		struct device_node *i2c_codec_node = NULL;
 
 		/* find my three i2c components on the dac board: an FPGA and two PCM1792 */
 		for (i=0; i<3; i++) {
 			const char *handle = i2c_node_refs[i];
-			pcm_node = of_parse_phandle(np, handle, 0);
+			struct device_node *node = of_parse_phandle(np, handle, 0);
 				
-			if (!pcm_node) {
+			if (!node) {
 				dev_err(&pdev->dev, "jedac5_bcm: handle %s not found!\n", handle);
-				return -EINVAL;
-			} else
-				pr_info("jedac5_bcm: Found handle %s for card\n", handle);
-		
+				continue;
+			}
+			pr_info("jedac5_bcm: Found handle %s for card\n", handle);
+		  found_nodes++;
+
 			if (i==0) {
-				i2c_codec_node = pcm_node;
+				i2c_codec_node = node;
 			} else {
 				/* my two pcm codecs as aux dev... */
 				struct snd_soc_aux_dev* aux_dev = &jedac5_aux_devs[i-1];
 				aux_dev->dlc.name = NULL;
-				aux_dev->dlc.of_node = pcm_node;
+				aux_dev->dlc.of_node = node;
 			}
 		}
 
 	  i2s_node = of_parse_phandle(np, "i2s-controller", 0);
 		if (!i2s_node) {
 			dev_err(&pdev->dev, "jedac5_bcm: i2s_node not found!\n");
-			return -EINVAL;
-		}
+		} else
+			found_nodes++;
 
 		// We have one i2s 'digital audio interface' towards the board FPGA
-	  struct snd_soc_dai_link *dai = &jedac5_dai_link[0];
 	  pr_info("jedac5_bcm: dai num_cpus=%u, num_platforms=%u, num_codecs=%u\n",
 	  dai->num_cpus, dai->num_platforms, dai->num_codecs);
 	  dai->cpus->dai_name = NULL;
-	  dai->cpus->of_node = i2s_node;
+	  dai->cpus[0].of_node = i2s_node;
 	  dai->platforms->name = NULL;
-	  dai->platforms->of_node = i2s_node;
+	  dai->platforms[0].of_node = i2s_node;
+		dai->codecs[0].of_node = i2c_codec_node;
 	}
 
-	ret = devm_snd_soc_register_card(&pdev->dev, &jedac5_sound_card);
-	const char *msg = (ret == 0) ? "Success" :
+	if (found_nodes == 4) {
+		// Good, all device tree nodes found!
+	  ret = devm_snd_soc_register_card(&pdev->dev, &jedac5_sound_card);
+	  const char *msg = (ret == 0) ? "Success" :
 	                  (ret == -EINVAL) ? "Incomplete snd_soc_card struct?" :
 										(ret == -ENODEV) ? "Linked component not found?" :
 										(ret == -ENOENT) ? "DT node or property missing?" :
 										(ret == -EIO) ? "Communication failure" :
 										(ret == -EPROBE_DEFER) ? "Deferred" : "Failure";
 	
-	if (ret && (ret != -EPROBE_DEFER)) {
-    dev_err(&pdev->dev, "jedac5_bcm: probe: register_card error: \"%s\", return %d\n", msg, ret);
+	  if (ret && (ret != -EPROBE_DEFER)) {
+      dev_err(&pdev->dev, "jedac5_bcm: probe: register_card error: \"%s\", return %d\n", msg, ret);
+	  } else {
+		  pr_info("jedac5_bcm: probe: register_card: \"%s\", return %d\n", msg, ret);
+	  }
 	} else {
-		pr_info("jedac5_bcm: probe: register_card: \"%s\", return %d\n", msg, ret);
+		pr_info("jedac5_bcm: probe: No register_card: nodes found=%d, return %d\n", found_nodes, ret);
 	}
+
+	// fix refcount of_node_get()/of_node_put()
+  of_node_put(dai->cpus[0].of_node);
+  of_node_put(dai->codecs[0].of_node);
+	of_node_put(jedac5_aux_devs[0].dlc.of_node);
+	of_node_put(jedac5_aux_devs[1].dlc.of_node);
 	return ret;
 }
 
