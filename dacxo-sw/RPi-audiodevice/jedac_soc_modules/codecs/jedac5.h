@@ -80,10 +80,6 @@
 
 #define GPIO_UI_TRIG    27
 
-struct jedac5_bcm_priv {
-  struct gpio_desc *uisync_gpio;
-};
-
 struct jedac5_codec_priv {
 	struct regmap *regmap;
 	unsigned char vol_l;

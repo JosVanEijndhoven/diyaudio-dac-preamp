@@ -42,47 +42,22 @@
 #include "jedac5.h"
 
 static const struct reg_default jedac5_reg_defaults[] = {
-#ifdef CS8416_SWMODE
-	{ REGDAC_control0,      0x00 },
-	{ REGDAC_control1,      0x00 },
-	{ REGDAC_control2,      0x00 },
-	{ REGDAC_control3,      0x00 },
-	{ REGDAC_control4,      0x00 },
-	{ REGDAC_SerAudioData,  0x00 },
-	{ REGDAC_RecvErrMask,   0x00 },
-	{ REGDAC_IntMask,       0x00 },
-	{ REGDAC_IntModeMSB,    0x00 },
-	{ REGDAC_IntModeLSB,    0x00 },
-	{ REGDAC_RecvChanStat,  0x00 },
-	{ REGDAC_AudioFmtDect,  0x00 },
-	{ REGDAC_RecvErr,       0x00 },
-#else
 	{ REGDAC_GPO0,          0x00 },
 	{ REGDAC_GPO1,          0x00 },
 	{ REGDAC_GPI0,          0x00 },
 	{ REGDAC_GPI1,          0x00 },
-#endif
 };
 
-static bool jedac5_readable(struct device *dev, unsigned int reg)
-{
-	return true;
-}
-
-static bool jedac5_writeable(struct device *dev, unsigned int reg)
-{
+static bool jedac5_writeable(struct device *dev, unsigned int reg) {
 	return (reg == REGDAC_GPO0) || (reg == REGDAC_GPO1);
 }
 
-static bool jedac5_volatile(struct device *dev, unsigned int reg)
-{
-	switch (reg) {
-	case REGDAC_GPI0:		  // run-time status sample
-	case REGDAC_GPI1:		  // run-time status sample
-		return true;
-	default:
-		return false;
-	}
+static bool jedac5_readable(struct device *dev, unsigned int reg) {
+	return (reg == REGDAC_GPI0) || (reg == REGDAC_GPI1) || jedac5_writeable(dev, reg);
+}
+
+static bool jedac5_volatile(struct device *dev, unsigned int reg) {
+	return (reg == REGDAC_GPI0) || (reg == REGDAC_GPI1);  // run-time status
 }
 
 const struct regmap_config jedac5_regmap_config = {
@@ -100,7 +75,7 @@ const struct regmap_config jedac5_regmap_config = {
 static int jedac5_set_dai_fmt(struct snd_soc_dai *codec_dai,
                              unsigned int format)
 {
-	pr_info("jedac5_codec set_dai_fmt(format=%u) dummy\n", format);
+	pr_warn("jedac5_codec set_dai_fmt(format=%u) DUMMY\n", format);
 	return 0;
 }
 
@@ -108,13 +83,13 @@ static int jedac5_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params,
 			     struct snd_soc_dai *dai)
 {
-	pr_info("jedac5_codec hw_params( rate=%d) dummy\n", params_rate(params));
+	pr_warn("jedac5_codec hw_params( rate=%d) DUMMY\n", params_rate(params));
 	return 0;
 }
 
 static int jedac5_digital_mute(struct snd_soc_dai *dai, int mute, int )
 {
-	pr_info("jedac5_codec digital_mute( mute=%d) dummy\n", mute);
+	pr_warn("jedac5_codec digital_mute( mute=%d) DUMMY\n", mute);
 	return 0;
 }
 
@@ -131,7 +106,8 @@ static struct snd_soc_dai_driver jedac5_dai = {
 		.channels_min = 2,
 		.channels_max = 2,
 		.rates = JEDAC5_RATES,
-		.formats = JEDAC5_FORMATS },
+		.formats = JEDAC5_FORMATS
+	},
 	.ops = &jedac5_dai_ops
 };
 
@@ -139,7 +115,8 @@ static int jedac5_probe(struct snd_soc_component *component)
 {
 	pr_info("jedac5_codec probe(): component \"%s\"\n",
 	  (component && component->name) ? component->name : "NULL");
-
+  // apparently called *after* the below i2c_probe().
+	// The codec name with attached i2c address is printed
 	return 0;
 }
 
@@ -226,8 +203,8 @@ static const struct snd_kcontrol_new jedac5_codec_controls[] = {
 };
 
 static const struct snd_soc_dapm_widget jedac5_dapm_widgets[] = {
-SND_SOC_DAPM_OUTPUT("IOUTL"),
-SND_SOC_DAPM_OUTPUT("IOUTR"),
+  SND_SOC_DAPM_OUTPUT("IOUTL"),
+  SND_SOC_DAPM_OUTPUT("IOUTR"),
 };
 
 static const struct snd_soc_dapm_route jedac5_dapm_routes[] = {
@@ -272,12 +249,12 @@ static int jedac5_i2c_probe(struct i2c_client *i2c)
 
 	ret = snd_soc_register_component(dev, &jedac5_codec_driver, &jedac5_dai, 1);
 	if (ret && ret != -EPROBE_DEFER) {
-		dev_err(dev, "jedac5_codec i2c_probe: Failed to register card, err=%d\n", ret);
+		dev_err(dev, "jedac5_codec i2c_probe: Failed to register codec component, err=%d\n", ret);
 	}
 	if (!ret) {
-		pr_info("jedac5_codec i2c_probe: registered i2c card driver!\n");
+		pr_info("jedac5_codec i2c_probe: registered codec component!\n");
 	} else {
- 	  pr_info("jedac5_codec i2c_probe: returns %d\n", ret);
+ 	  pr_info("jedac5_codec i2c_probe: register component returns %d\n", ret);
 	}
 	return ret;
 }
@@ -321,8 +298,9 @@ static int __init jedac5_modinit(void)
 	int ret = 0;
 	ret = i2c_add_driver(&jedac5_i2c_driver);
 	if (ret != 0) {
-		printk(KERN_ERR "jedac5_codec modinit: Failed to register i2c driver: %d\n",
-		       ret);
+		pr_err("jedac5_codec modinit: Failed to register i2c driver: %d\n", ret);
+	} else {
+		pr_info("jedac5_codec modinit: registered my i2c driver");
 	}
 
 	return ret;

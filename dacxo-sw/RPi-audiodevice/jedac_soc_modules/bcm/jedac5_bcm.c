@@ -43,21 +43,21 @@
 /*****************************************************************************
 * forward declarations of device-specific functions
 ******************************************************************************/
-static int jedac_pcm1792_init(struct snd_soc_component *component, bool is_right_chan);
 static int jedac_mode_init(struct snd_soc_component *codec);
-static void jedac_i2c_set_volume( unsigned short vol_l, unsigned short vol_r);
+static void jedac_set_attenuation( struct jedac_bcm_priv *priv, unsigned short vol_l, unsigned short vol_r);
 static int jedac_i2c_set_i2s(int samplerate);
 
 /*****************************************************************************
 * Functions and structs to implement the ASoC module API
 ******************************************************************************/
 
-static int jedac_pcm1792_init_l(struct snd_soc_component *component) {
-	return jedac_pcm1792_init(component, 0);
-}
-static int jedac_pcm1792_init_r(struct snd_soc_component *component) {
-	return jedac_pcm1792_init(component, 1);
-}
+struct jedac_bcm_priv {
+	  struct gpio_desc *uisync_gpio;
+		struct i2c_client *fpga;
+    struct i2c_client *dac_left;
+    struct i2c_client *dac_right;
+    uint32_t prev_volume;
+};
 
 /* sound card init */
 static int snd_rpi_jedac5_dai_init(struct snd_soc_pcm_runtime *rtd)
@@ -78,30 +78,6 @@ static int snd_rpi_jedac5_dai_init(struct snd_soc_pcm_runtime *rtd)
 	pr_info("jedac5_bcm: snd_rpi_jedac5_dai_init returns %d\n", ret);
 	return ret;
 }
-
-static struct snd_soc_aux_dev jedac5_aux_devs[] = {
-	{
-		.dlc = {
-		  .name = "pcm1792a.1-004d", // bus addr 9a div 2: left channel
-		},
-		.init = jedac_pcm1792_init_l,
-	},
-	{
-		.dlc = {
-		  .name = "pcm1792a.1-004c", // bus addr 98 div 2: right channel
-		},
-		.init = jedac_pcm1792_init_r,
-	},
-};
-
-/*
-static struct snd_soc_codec_conf jedac5_codec_conf[] = {
-	{
-		.dev_name = "jedac-codec.2-0019",
-		.name_prefix = "b",
-	},
-};
-*/
 
 /* set hw parameters */
 static int snd_rpi_jedac5_hw_params(struct snd_pcm_substream *substream,
@@ -125,18 +101,17 @@ static int snd_rpi_jedac5_hw_params(struct snd_pcm_substream *substream,
 
 // replace the volume control from soc-ops.c
 // which is inserted through e.g. #define SOC_DOUBLE_R in soc.h
-static int my_info_volsw(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_info *uinfo)
+static int bcm_vol_info(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_info *uinfo)
 {
 	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
-	uinfo->count = 2;
-  uinfo->value.integer.min = -1 * DAC_max_attenuation_dB;
-  uinfo->value.integer.max = 0;
-  uinfo->value.integer.step = DAC_step_attenuation_dB;
-	
+  uinfo->count = 2;       // Stereo
+  uinfo->value.integer.min = 0;
+  uinfo->value.integer.max = DAC_max_attenuation_dB;
+
 	return 0;
 }
 
-static int my_get_volsw(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+static int bcm_vol_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
 	unsigned short vol_l, vol_r;
 	pr_info("jedac5_bcm:my_snd_soc_get_volsw() private_value = %04lx\n",
@@ -150,44 +125,52 @@ static int my_get_volsw(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value
 	return 0;
 }
 
-static int my_put_volsw(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
+static int bcm_vol_put(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
-	unsigned short vol_l, vol_r;
-	unsigned int new_private;
+	uint32_t new_vol;
 	int changed = 0;
+
+	struct snd_soc_card *card = snd_kcontrol_chip(kcontrol);
+  struct jedac_bcm_priv *priv = snd_soc_card_get_drvdata(card);
+  uint16_t vol_l = ucontrol->value.integer.value[0];
+  uint16_t vol_r = ucontrol->value.integer.value[1];
 	
-	// hmm.. the line below results in some illegal pointer, avoid such call...
-	//struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+	// ALSA values are configured to 0 (mute) to 80 (0dB)
+	pr_info("jedac5_bcm: vol_put() ALSA vol_l=%u, vol_r=%d\n", vol_l, vol_r);
+
 	
-	pr_info("jedac5_bcm:my_snd_soc_put_volsw() private_value = %04lx\n",
-		kcontrol->private_value);
-		
-	// vol_x values are attenuation in dBs: 0 is max volume, 79 is min volume, 80 is mute
-	vol_l = abs(ucontrol->value.integer.value[0]);
-	if (vol_l > DAC_max_attenuation_dB)
-		vol_l = DAC_max_attenuation_dB;
+	new_vol = (vol_l << 16) | vol_r;
+	changed = new_vol != priv->prev_volume;
+
+	if (!changed || !priv->dac_left || !priv->dac_right)
+	  return 1;
 	
-	vol_r = abs(ucontrol->value.integer.value[1]);
-	if (vol_r > DAC_max_attenuation_dB)
-		vol_r = DAC_max_attenuation_dB;
-	
-	new_private = (vol_r << 16) | vol_l;
-	changed = new_private != kcontrol->private_value;
-	
-	if (changed) {
-		kcontrol->private_value = new_private;
-		jedac_i2c_set_volume( vol_l, vol_r);
-		// TODO: write vol_l and vol_r to i2c devices...
-		// err = snd_soc_update_bits(codec, reg, val_mask, val);
-	}
-	
-	return changed;
+	priv->prev_volume = new_vol;
+	jedac_set_attenuation( priv, DAC_max_attenuation_dB - vol_l, DAC_max_attenuation_dB - vol_r);
+
+	return 1;
 }
 
 // define my volume scale as -80dB to 0 dB in steps of 1 dB, where the lowest volume does mute
+/* 
+ * min_db: -8000 (centibels)
+ * step: 100 (1 dB in centibels)
+ * mute: 1 (the minimum value 0 will be displayed as "Mute" in UI)
+ */
 static DECLARE_TLV_DB_SCALE(dac_db_scale, (-100 * DAC_max_attenuation_dB),
 	                        (100 * DAC_step_attenuation_dB), 1);
 
+static const struct snd_kcontrol_new jedac5_controls[] = {
+	{
+        .iface = SNDRV_CTL_ELEM_IFACE_MIXER,
+        .name = "Master Playback Volume",
+        .access = SNDRV_CTL_ELEM_ACCESS_READWRITE | SNDRV_CTL_ELEM_ACCESS_TLV_READ,
+        .info = bcm_vol_info,
+        .get  = bcm_vol_get,
+        .put  = bcm_vol_put,
+        .tlv.p = dac_db_scale,
+  },
+};
 // static int snd_soc_put_volsw(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 static const struct snd_kcontrol_new jedac5_controls[] = {
 	{
@@ -196,15 +179,10 @@ static const struct snd_kcontrol_new jedac5_controls[] = {
 		.access = SNDRV_CTL_ELEM_ACCESS_TLV_READ | SNDRV_CTL_ELEM_ACCESS_READWRITE,
 		.tlv.p = dac_db_scale,
 		.info = my_info_volsw,
-		.get = my_get_volsw,
-		.put = my_put_volsw,
+		.get = bcm_vol_get,
+		.put = bcm_vol_put,
 		.private_value = 0
 	}
-	//SOC_DOUBLE_R_EXT_TLV("DAC Playback Volume",
-	//			PCM1792A_DAC_VOL_LEFT,
-	//			PCM1792A_DAC_VOL_RIGHT,
-	//			0, DAC_max_attenuation_dB, 0,
-	//			my_get_volsw, my_put_volsw, dac_db_scale),
 };
 
 /* startup */
@@ -332,15 +310,19 @@ static int snd_rpi_jedac5_probe(struct platform_device *pdev)
 {
 	int ret = -EINVAL;
 	int i;
-  int found_nodes = 0;
 	struct device_node *np = pdev->dev.of_node;
 	jedac5_sound_card.dev = &pdev->dev;
 	
-	pr_info("jedac5_bcm: start probe()\n");
-	struct snd_soc_dai_link *dai = &jedac5_dai_link[0];
+	if (np) {
+    pr_info("jedac5_bcm: start probe(), device node OK!\n");
+	} else {
+    pr_err("jedac5_bcm: probe(): device node error!\n");
+		return -EINVAL;
+	}
+
 
 	// Allocate private memory managed by the device
-  struct jedac5_bcm_priv* priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
+	struct jedac_bcm_priv* priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
   if (!priv) {
 		pr_err("jedac5_bcm: probe() failed to alloc priv struct!\n");
     return -ENOMEM;
@@ -357,51 +339,44 @@ static int snd_rpi_jedac5_probe(struct platform_device *pdev)
 		pr_err("jedac5_bcm: successfully acquired 'uisync' gpio pin!\n");
 	}
 
-	if (np) {	
-	  struct device_node *i2s_node = NULL;
-		struct device_node *i2c_codec_node = NULL;
-
-		/* find my three i2c components on the dac board: an FPGA and two PCM1792 */
-		for (i=0; i<3; i++) {
-			const char *handle = i2c_node_refs[i];
-			struct device_node *node = of_parse_phandle(np, handle, 0);
-				
-			if (!node) {
-				dev_err(&pdev->dev, "jedac5_bcm: handle %s not found!\n", handle);
-				continue;
-			}
-			pr_info("jedac5_bcm: Found handle %s for card\n", handle);
-		  found_nodes++;
-
-			if (i==0) {
-				i2c_codec_node = node;
-			} else {
-				/* my two pcm codecs as aux dev... */
-				struct snd_soc_aux_dev* aux_dev = &jedac5_aux_devs[i-1];
-				aux_dev->dlc.name = NULL;
-				aux_dev->dlc.of_node = node;
-			}
+	struct snd_soc_dai_link *dai = &jedac5_dai_link[0];
+	/* find my three i2c components on the dac board: an FPGA and two PCM1792 */
+  int found_nodes = 0;
+	struct device_node *nodes[3];
+	for (i = 0; i < 3; i++) {
+		const char *handle = i2c_node_refs[i];
+		nodes[i] = of_parse_phandle(np, handle, 0);
+			
+		if (!nodes[i]) {
+			dev_err(&pdev->dev, "jedac5_bcm: handle %s not found!\n", handle);
+			continue;
 		}
-
-	  i2s_node = of_parse_phandle(np, "i2s-controller", 0);
-		if (!i2s_node) {
-			dev_err(&pdev->dev, "jedac5_bcm: i2s_node not found!\n");
-		} else {
-			pr_info("jedac5_bcm: Found i2s handle for card\n");
-			found_nodes++;
-		}
-
-		// We have one i2s 'digital audio interface' towards the board FPGA
-	  pr_info("jedac5_bcm: dai num_cpus=%u, num_platforms=%u, num_codecs=%u\n",
-	  dai->num_cpus, dai->num_platforms, dai->num_codecs);
-	  dai->cpus[0].name = NULL;
-	  dai->cpus[0].dai_name = NULL;
-	  dai->cpus[0].of_node = i2s_node;
-	  dai->platforms[0].name = NULL;
-	  dai->platforms[0].of_node = i2s_node;
-		dai->codecs[0].name = NULL;
-		dai->codecs[0].of_node = i2c_codec_node;
+		pr_info("jedac5_bcm: Found handle %s for card\n", handle);
+	  found_nodes++;
 	}
+	priv->fpga = of_find_i2c_device_by_node(nodes[0]);
+	priv->dac_left = of_find_i2c_device_by_node(nodes[1]);
+	priv->dac_right = of_find_i2c_device_by_node(nodes[2]);
+	priv->current_volume = 0;
+
+	struct device_node i2s_node = of_parse_phandle(np, "i2s-controller", 0);
+	if (!i2s_node) {
+		dev_err(&pdev->dev, "jedac5_bcm: i2s_node not found!\n");
+	} else {
+		pr_info("jedac5_bcm: Found i2s handle for card\n");
+		found_nodes++;
+	}
+
+	// We have one i2s 'digital audio interface' towards the board FPGA
+  pr_info("jedac5_bcm: dai num_cpus=%u, num_platforms=%u, num_codecs=%u\n",
+    dai->num_cpus, dai->num_platforms, dai->num_codecs);
+  dai->cpus[0].name = NULL;
+	dai->cpus[0].dai_name = NULL;
+	dai->cpus[0].of_node = i2s_node;
+	dai->platforms[0].name = NULL;
+	dai->platforms[0].of_node = i2s_node;
+	dai->codecs[0].name = NULL;
+	dai->codecs[0].of_node = nodes[0];  // our fpga acts as dai codec
 
 	if (found_nodes == 4) {
 		// Good, all device tree nodes found!
@@ -423,10 +398,10 @@ static int snd_rpi_jedac5_probe(struct platform_device *pdev)
 	}
 
 	// fix refcount of_node_get()/of_node_put()
-  of_node_put(dai->cpus[0].of_node);
-  of_node_put(dai->codecs[0].of_node);
-	of_node_put(jedac5_aux_devs[0].dlc.of_node);
-	of_node_put(jedac5_aux_devs[1].dlc.of_node);
+  of_node_put(i2s_node);
+  of_node_put(nodes[0]);
+	of_node_put(nodes[1]);
+	of_node_put(nodes[2]);
 	return ret;
 }
 
@@ -586,81 +561,45 @@ static int jedac_mode_init(struct snd_soc_component *codec)
 	return i2cerr;
 }
 
-static void jedac_i2c_set_volume( unsigned short att_l, unsigned short att_r)
+static void jedac_set_attenuation_pcm1792(struct i2c_client *dac, uint16_t att)
 {
-	// vol_? values are attenuation in dBs: 0 is max volume, 79 is min volume, 80 is mute
+	uint8_t chip_att = (att == 0) ? 0 : (255 - ((80 - att) * 2));
+	// write att value to both left and right on-chip channel, as we use mono mode
+	int err = i2c_smbus_write_byte_data(dac, PCM1792A_DAC_VOL_LEFT, chip_att);
+	if (!err)
+	  err = i2c_smbus_write_byte_data(dac, PCM1792A_DAC_VOL_RIGHT, chip_att);
 
-	int id, i2cerr, reg_att;
-	struct snd_soc_component *comp = get_rtd_component();
-	
+  if (err) {
+    pr_warn("jedac5_bcm: set_attenuation_pcn1792(): error=%d in i2c dac write!\n", err);
+}
+
+static void jedac_set_attenuation( struct jedac_bcm_priv *priv, uint16_t att_l, uint16_t att_r)
+{
+	// att_? values are attenuation in dBs: 0 is max volume, 79 is min volume, 80 is mute
   int enable_20dB_att = (att_l >= 20) && (att_r >= 20);
   int mute = (att_l >= DAC_max_attenuation_dB) && (att_r >= DAC_max_attenuation_dB);
 	
-	pr_info("jedac5_bcm: jedac_i2c_set_volume(att_l=%d att_r=%d)\n",
-		(int)att_l, (int)att_r);
+	pr_info("jedac5_bcm: set_attenuation(att_l=%u att_r=%u)\n", att_l, att_r);
 	
-	if (!comp) {
-		pr_info("jedac5_bcm: jedac_i2c_set_volume: no component?? num_rtd=%d\n",
-			jedac5_sound_card.num_rtd);
-		return;
-	}
-
-  // adjust the digital volume attenuation for the 20dB switch if not totally silent
+  // adjust the analog volume attenuation -20dB relay if not totally silent
   if (enable_20dB_att && !mute) {
     att_l -= 20; // raise digital (dac) volume
     att_r -= 20; // raise digital (dac) volume
   }
 	
-#ifdef CS8416_SWMODE
-	i2cerr = snd_soc_write(codec, REGDAC_control3, enable_20dB_att?0xc0:0x00);
-#else
-	i2cerr = snd_soc_component_write(comp, REGDAC_GPO1, (enable_20dB_att ? GPO1_ATT20DB : 0));
-#endif
-  if (i2cerr) {
-    pr_info("jedac5_bcm: jedac_i2c_set_volume(): error in i2c codec write!\n");
+	// write the board 20dB_attenuation to the fpga:
+	int err = i2c_smbus_write_byte_data(priv->fpga, REGDAC_GPO1, (enable_20dB_att ? GPO1_ATT20DB : 0));
+  if (err) {
+    pr_warn("jedac5_bcm: set_attenuation(): error=%d in i2c codec write!\n", err);
     // continue further operation...
   } else {
-		pr_info("jedac5_bcm: jedac_i2c_set_volume(): wrote enable_20db_att=%d to %s\n",
-			enable_20dB_att, comp->name);
+		pr_info("jedac5_bcm: set_attenuation(): wrote enable_20db_att=%d\n", enable_20dB_att);
 	}
-	
+
 	// the pcm1792 dacs are used in dual-mono mode:
 	// write the volume to each of both codecs
-	id = 0;
-	struct snd_soc_component *component = NULL;
-	list_for_each_entry(component, &jedac5_sound_card.aux_comp_list, list) {
-		unsigned short att;
-		if (!component)
-			continue;
-		if (0 == strcmp(component->name, "pcm1792a_l")) {
-			att = att_l;
-			id++;
-		} else if (0 == strcmp(component->name, "pcm1792a_r")) {
-			att = att_r;
-			id++;
-		} else {
-			continue;
-		}
-
-		reg_att = (255 - 2*att) & 0xff;
-		i2cerr = snd_soc_component_write(component, PCM1792A_DAC_VOL_LEFT, reg_att) ||
-			     snd_soc_component_write(component, PCM1792A_DAC_VOL_RIGHT, reg_att);
-		if (i2cerr) {
-			pr_info("jedac5_bcm: jedac_i2c_set_volume(): error in i2c write!\n");
-			return;
-		} else {
-			pr_info("jedac5_bcm: jedac_i2c_set_volume(): att=%d, write reg_att=0x%02x to %s\n",
-				att, reg_att, component->name);
-		}
-	}
-	if (id != 2) {
-		pr_info("jedac5_bcm: jedac_i2c_set_volume(): cannot access two pcm1792 components!\n");
-    if (component)
-			pr_info("jedac5_bcm: jedac_i2c_set_volume(): saw component \"%s\"\n", component->name);
-		return;
-	}
-
-	pr_info("jedac5_bcm: jedac_i2c_set_volume(%d, %d) OK!\n", att_l, att_r);
+  jedac_set_attenuation_pcm1792(priv->dac_l, att_l);
+  jedac_set_attenuation_pcm1792(priv->dac_r, att_r);
 }
 
 static int jedac_i2c_set_i2s(int samplerate)

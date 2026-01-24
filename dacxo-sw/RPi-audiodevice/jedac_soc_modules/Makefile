@@ -24,7 +24,7 @@ INSTALL_DTB := /boot/overlays/jedac5.dtbo
 INSTALL_INITD := /etc/init.d/jedac
 MODULES_ALIAS := /lib/modules/$(KERNELREV)/modules.alias
 
-.PHONY: all tar backup dtbs modules install uninstall clean clean_all
+.PHONY: all tar backup dtbs modules install uninstall clean clean_install show test_dtoverlay
 
 # install: $(INSTALL_KOS) $(INSTALL_DTB) $(INSTALL_INITD)
 install: $(INSTALL_KOS) $(INSTALL_DTB) $(MODULES_ALIAS)
