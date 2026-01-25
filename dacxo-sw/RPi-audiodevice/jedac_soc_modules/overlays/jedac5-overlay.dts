@@ -31,7 +31,7 @@
 				// property causes subnode as one of dai_link->num_codecs
 				// and inclusion in the dai_link->codecs array.
 				compatible = "jve,jedac5_codec";
-				reg = <0x10>; // Is address of onboard cs8416
+				reg = <0x10>; // Is address of onboard fpga
 				status = "okay";
 			};
 

@@ -79,13 +79,5 @@
 #define GPI1_ANAPWR			0x01
 
 #define GPIO_UI_TRIG    27
-
-struct jedac5_codec_priv {
-	struct regmap *regmap;
-	unsigned char vol_l;
-	unsigned char vol_r;
-	unsigned char chan_select;
-	unsigned char mute;
-};
 		  
 #endif /* _JEDAC5_H */

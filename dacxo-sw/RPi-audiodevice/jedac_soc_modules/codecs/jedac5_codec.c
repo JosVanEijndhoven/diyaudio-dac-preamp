@@ -72,31 +72,90 @@ const struct regmap_config jedac5_regmap_config = {
 	.cache_type = REGCACHE_RBTREE,
 };
 
-static int jedac5_set_dai_fmt(struct snd_soc_dai *codec_dai,
+#if 0
+struct jedac5_codec_priv {
+	struct regmap *regmap;
+};
+#endif
+
+static int codec_set_dai_fmt(struct snd_soc_dai *codec_dai,
                              unsigned int format)
 {
 	pr_warn("jedac5_codec set_dai_fmt(format=%u) DUMMY\n", format);
 	return 0;
 }
 
-static int jedac5_hw_params(struct snd_pcm_substream *substream,
+static int jedac_i2c_set_i2s(struct snd_soc_component *codec, int samplerate)
+{
+	int i2cerr, freq_base, freq_mult, gpo_val;
+	
+	if (samplerate == 48000 || samplerate == 96000 || samplerate == 192000)
+		freq_base = 1; // enable other xtal oscillator
+	else
+		freq_base = 0; // default xtal oscillator
+	
+	switch (samplerate) {
+		case 44100:
+		case 48000: freq_mult = 1;
+		break;
+		case 88200:
+		case 96000: freq_mult = 2;
+		break;
+		case 176400:
+		case 192000: freq_mult = 3;
+		break;
+		default:
+			freq_mult = 0; // illegal/unsupported samplerate
+	}
+	
+	// send a trigger to the ui controller: denote a busy i2c and changed dac settings
+	// struct jedac5_bcm_priv *priv = snd_soc_card_get_drvdata(&jedac5_sound_card);
+	// if (0 == gpiod_get_value(priv->uisync_gpio)) {
+	// 	pr_warn("jedac5_bcm: jedac_i2c_set_i2s: unexpected 'low' on ui-trig gpio!");
+	// }
+	// gpiod_set_value(priv->uisync_gpio, 0);
+
+	gpo_val = GPO0_POWERUP | GPO0_CLKMASTER | (freq_base << 1) | (freq_mult << 2);
+	i2cerr = snd_soc_component_write(codec, REGDAC_GPO0, gpo_val);
+	// as test, read-back fpga status byte
+	gpo_val = snd_soc_component_read(codec, REGDAC_GPI0);
+	if (gpo_val < 0) // values >=0 indicate valid read, no error
+		i2cerr = gpo_val;
+
+	// gpiod_set_value(priv->uisync_gpio, 1);  // clear the ui trigger pulse
+	pr_info("jedac5_bcm: jedac_i2c_set_i2s: read GPI=0x%02x. i2c err=%d\n", (int)(gpo_val & 0xff), i2cerr);
+
+	return i2cerr;
+}
+
+static int codec_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params,
 			     struct snd_soc_dai *dai)
 {
-	pr_warn("jedac5_codec hw_params( rate=%d) DUMMY\n", params_rate(params));
-	return 0;
+	unsigned int rate = params_rate(params);
+  struct snd_soc_component *codec = dai->component;
+
+	pr_warn("jedac5_codec hw_params( rate=%d)\n", rate);
+
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
+	int samplerate = params_rate(params);
+	int samplewidth = snd_pcm_format_width(params_format(params));
+	int clk_ratio = 64; // fixed bclk ratio is easiest for my HW
+	int err_clk = snd_soc_dai_set_bclk_ratio(cpu_dai, clk_ratio);
+	int err_rate = jedac_i2c_set_i2s(codec, samplerate);
+	
+	//	snd_pcm_format_physical_width(params_format(params));
+	pr_info("jedac5_bcm:snd_rpi_jedac5_hw_params(rate=%d, width=%d) err_clk=%d err_rate=%d\n",
+		samplerate, samplewidth, err_clk, err_rate);
+
+	return err_clk;
 }
 
-static int jedac5_digital_mute(struct snd_soc_dai *dai, int mute, int )
-{
-	pr_warn("jedac5_codec digital_mute( mute=%d) DUMMY\n", mute);
-	return 0;
-}
-
-static const struct snd_soc_dai_ops jedac5_dai_ops = {
-	.set_fmt	   = jedac5_set_dai_fmt,
-	.hw_params	 = jedac5_hw_params,
-	.mute_stream = jedac5_digital_mute
+static const struct snd_soc_dai_ops codec_dai_ops = {
+	.set_fmt	   = codec_set_dai_fmt,
+	.hw_params	 = codec_hw_params,
+	// .mute_stream = codec_digital_mute
 };
 
 static struct snd_soc_dai_driver jedac5_dai = {
@@ -108,144 +167,66 @@ static struct snd_soc_dai_driver jedac5_dai = {
 		.rates = JEDAC5_RATES,
 		.formats = JEDAC5_FORMATS
 	},
-	.ops = &jedac5_dai_ops
+	.ops = &codec_dai_ops
 };
 
-static int jedac5_probe(struct snd_soc_component *component)
+static int jedac_codec_probe(struct snd_soc_component *codec)
 {
-	pr_info("jedac5_codec probe(): component \"%s\"\n",
-	  (component && component->name) ? component->name : "NULL");
-  // apparently called *after* the below i2c_probe().
-	// The codec name with attached i2c address is printed
+  // Called *after* the below i2c_probe()
+
+	// Retrieve the regmap that devm_regmap_init_i2c attached to the device,
+  struct regmap *regmap = dev_get_regmap(codec->dev, NULL);
+  // .. and explicitly tell the component to use this regmap
+  snd_soc_component_init_regmap(codec, regmap);
+
+	// Ensure power-up, make the DAC as i2s clock master
+	uint8_t reg_chan = GPO0_POWERUP | GPO0_CLKMASTER;
+	int i2cerr = snd_soc_component_write(codec, REGDAC_GPO0, reg_chan);
+
+	pr_info("jedac_codec probe(): initialize component \"%s\": %s\n",
+	  (codec && codec->name) ? codec->name : "NULL",
+	  (i2cerr == 0) ? "OK" : "Fail");
+
 	return 0;
 }
 
-static void jedac5_remove(struct snd_soc_component *component)
+static void jedac_codec_remove(struct snd_soc_component *component)
 {
-	pr_info("jedac5_codec remove() codec\n");
-
-	// pm_runtime_disable(dev); ??
+	pr_info("jedac_codec remove() codec\n");
 }
 
-static int my_info_volsw(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_info *uinfo)
-{
-	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
-	uinfo->count = 2;
-    uinfo->value.integer.min = -1 * DAC_max_attenuation_dB;
-    uinfo->value.integer.max = 0;
-    uinfo->value.integer.step = DAC_step_attenuation_dB;
-	
-	return 0;
-}
-
-static int my_get_volsw(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
-{
-	unsigned short vol_l, vol_r;
-
-	vol_l = kcontrol->private_value & 0x00ff; // lower 16 bits for left channel, 1dB units
-	vol_r = (kcontrol->private_value >> 16) & 0x00ff; // lower 16 bits for left channel
-	pr_info("jedac5_codec: my_snd_soc_get_volsw() vol_l=%d vol_r=%d\n",(int)vol_l, (int)vol_r);
-	ucontrol->value.integer.value[0] = -vol_l;
-	ucontrol->value.integer.value[1] = -vol_r;
-	
-	return 0;
-}
-
-static int my_put_volsw(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
-{
-	unsigned short vol_l, vol_r;
-	unsigned int new_private;
-	int changed = 0;
-	
-	// hmm.. the line below results in some illegal pointer, avoid such call...
-	//struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
-	
-	pr_info("jedac5_codec my_put_volsw() private_value = %04lx\n",
-		kcontrol->private_value);
-		
-	vol_l = abs(ucontrol->value.integer.value[0]);
-	if (vol_l > DAC_max_attenuation_dB)
-		vol_l = DAC_max_attenuation_dB;
-	
-	vol_r = abs(ucontrol->value.integer.value[1]);
-	if (vol_r > DAC_max_attenuation_dB)
-		vol_r = DAC_max_attenuation_dB;
-	
-	new_private = (vol_r << 16) | vol_l;
-	changed = new_private != kcontrol->private_value;
-	
-	if (changed) {
-		kcontrol->private_value = new_private;
-		// Dummy: done already at bcm level...
-		// jedac_i2c_set_volume( vol_l, vol_r);
-		// TODO: write vol_l and vol_r to i2c devices...
-		// err = snd_soc_update_bits(codec, reg, val_mask, val);
-	}
-	
-	return changed;
-}
-
-// define my volume scale as -80dB to 0 dB in steps of 1 dB, where the lowest volume does mute
-static DECLARE_TLV_DB_SCALE(dac_db_scale, (-100 * DAC_max_attenuation_dB),
-	                        (100 * DAC_step_attenuation_dB), 1);
-
-static const struct snd_kcontrol_new jedac5_codec_controls[] = {
-	{
-		.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
-		.name = "CODEC Playback Volume",
-		.access = SNDRV_CTL_ELEM_ACCESS_TLV_READ | SNDRV_CTL_ELEM_ACCESS_READWRITE,
-		.tlv.p = dac_db_scale,
-		.info = my_info_volsw,
-		.get = my_get_volsw,
-		.put = my_put_volsw,
-		.private_value = 0
-	}
-};
-
-static const struct snd_soc_dapm_widget jedac5_dapm_widgets[] = {
-  SND_SOC_DAPM_OUTPUT("IOUTL"),
-  SND_SOC_DAPM_OUTPUT("IOUTR"),
-};
-
-static const struct snd_soc_dapm_route jedac5_dapm_routes[] = {
-	{ "IOUTL", NULL, "Playback" },
-	{ "IOUTR", NULL, "Playback" },
-};
 
 static struct snd_soc_component_driver jedac5_codec_driver = {
-	.name         = "snd_jve_dac",
-	.probe 				= jedac5_probe,
-	.remove 			= jedac5_remove,
-	.controls		    = jedac5_codec_controls,
-	.num_controls		= ARRAY_SIZE(jedac5_codec_controls),
-	.dapm_widgets		= jedac5_dapm_widgets,
-	.num_dapm_widgets	= ARRAY_SIZE(jedac5_dapm_widgets),
-	.dapm_routes		= jedac5_dapm_routes,
-	.num_dapm_routes	= ARRAY_SIZE(jedac5_dapm_routes)
+	.name         = "jedac codec driver",
+	.probe 				= jedac_codec_probe,
+	.remove 			= jedac_codec_remove,
 };
 
-static int jedac5_i2c_probe(struct i2c_client *i2c)
+static int codec_i2c_probe(struct i2c_client *i2c)
 {
 	struct device *dev = &i2c->dev;
-	struct jedac5_codec_priv *jedac5_priv;
- 	struct regmap *regmap;
 	int ret = 0;
 	
+	// called when the os encounters this i2c device.
+	// Crucial: its call to snd_soc_register_component where this i2c device announces
+	// that it is part of the ASOC sound system
 	pr_info("jedac5_codec i2c_probe(name=\"%s\", addr=0x%02x)\n", i2c->name, (i2c->addr & 0x7f));
-
-	regmap = devm_regmap_init_i2c(i2c, &jedac5_regmap_config);
+	
+	struct regmap *regmap = devm_regmap_init_i2c(i2c, &jedac5_regmap_config);
 	if (IS_ERR(regmap)) {
 		ret = PTR_ERR(regmap);
 		dev_err(dev, "Failed to register i2c regmap: %d\n", ret);
 		return ret;
 	}
 
- 	jedac5_priv = devm_kzalloc(dev, sizeof(struct jedac5_codec_priv), GFP_KERNEL);
+#if 0
+ 	struct jedac5_codec_priv *jedac5_priv = devm_kzalloc(dev, sizeof(struct jedac5_codec_priv), GFP_KERNEL);
 	if (!jedac5_priv)
 		return -ENOMEM;
 
 	dev_set_drvdata(dev, jedac5_priv);
 	jedac5_priv->regmap = regmap;
+#endif
 
 	ret = snd_soc_register_component(dev, &jedac5_codec_driver, &jedac5_dai, 1);
 	if (ret && ret != -EPROBE_DEFER) {
@@ -259,7 +240,7 @@ static int jedac5_i2c_probe(struct i2c_client *i2c)
 	return ret;
 }
 
-static void jedac5_i2c_remove(struct i2c_client *i2c)
+static void codec_i2c_remove(struct i2c_client *i2c)
 {
 	const char i2c_standby[] = {REGDAC_GPO0, 0x00};
 	pr_info("jedac5_codec i2c_remove(), DAC power-down\n");
@@ -269,11 +250,11 @@ static void jedac5_i2c_remove(struct i2c_client *i2c)
 	snd_soc_unregister_component(&i2c->dev);
 }
 
-static const struct i2c_device_id jedac5_i2c_id[] = {
+static const struct i2c_device_id codec_i2c_id[] = {
 	{ "jedac5_codec", 0 },
 	{ }
 };
-MODULE_DEVICE_TABLE(i2c, jedac5_i2c_id);
+MODULE_DEVICE_TABLE(i2c, codec_i2c_id);
 
 static const struct of_device_id jedac5_of_match[] = {
 	{ .compatible = "jve,jedac5_codec", },
@@ -281,37 +262,18 @@ static const struct of_device_id jedac5_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, jedac5_of_match);
 
-static struct i2c_driver jedac5_i2c_driver = {
+static struct i2c_driver codec_i2c_driver = {
 	.driver = {
-		.name = "jedac5_codec",
+		.name = "jedac codec i2c driver",
 		.owner = THIS_MODULE,
 //		.pm = &jedac5_pm,
 		.of_match_table = jedac5_of_match,
 	},
-	.probe = jedac5_i2c_probe,
-	.remove = jedac5_i2c_remove,
-	.id_table = jedac5_i2c_id
+	.probe = codec_i2c_probe,
+	.remove = codec_i2c_remove,
+	.id_table = codec_i2c_id
 };
-
-static int __init jedac5_modinit(void)
-{
-	int ret = 0;
-	ret = i2c_add_driver(&jedac5_i2c_driver);
-	if (ret != 0) {
-		pr_err("jedac5_codec modinit: Failed to register i2c driver: %d\n", ret);
-	} else {
-		pr_info("jedac5_codec modinit: registered my i2c driver");
-	}
-
-	return ret;
-}
-module_init(jedac5_modinit);
-
-static void __exit jedac5_exit(void)
-{
-	i2c_del_driver(&jedac5_i2c_driver);
-}
-module_exit(jedac5_exit);
+module_i2c_driver(codec_i2c_driver);
 
 MODULE_DESCRIPTION("ASoC jedac5 codec driver");
 MODULE_AUTHOR("Jos van Eijndhoven <jos@vaneijndhoven.net>");

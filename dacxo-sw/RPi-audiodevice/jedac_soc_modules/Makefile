@@ -16,7 +16,6 @@ KERNEL     ?= kernel7
 export KERNEL
 
 LOCAL_KOS  := codecs/snd-soc-jedac5_codec.ko \
-              codecs/snd-soc-jve1792a-i2c.ko \
               bcm/snd-soc-jedac5_bcm.ko
 
 INSTALL_KOS := $(addsuffix .xz,$(addprefix $(INSTALLDIR)/,$(notdir $(LOCAL_KOS))))
@@ -60,15 +59,15 @@ clean_install: clean
 
 uninstall:
 	sudo dtoverlay -v -r jedac5
-	sudo modprobe -v -r snd_soc_jedac5_codec snd_soc_jve1792a_i2c snd_soc_jedac5_bcm
+	sudo modprobe -v -r snd_soc_jedac5_codec snd_soc_jedac5_bcm
 
 test_dtoverlay: $(INSTALL_KOS) $(INSTALL_DTB)
 	sudo sysctl -w kernel.printk=6 ;\
 	sudo dtoverlay -v jedac5 ;\
 	sleep 2 ;\
 	sudo sysctl -w kernel.printk=3 ;\
-	lsmod | grep 'jedac\|jve1792'
-	dmesg | grep 'jedac\|jve1792'
+	lsmod | grep 'jedac'
+	dmesg | grep 'jedac'
 
 dry_run.lst: dry_run.dtbo
 	fdtdump $< > $@
@@ -92,9 +91,6 @@ bcm/snd-soc-jedac5_bcm.ko: bcm/jedac5_bcm.c codecs/jedac5.h codecs/pcm1792a.h
 	cd bcm && $(MAKE) -C $(LINUXHDR) M=$$PWD modules
 
 codecs/snd-soc-jedac5_codec.ko: codecs/jedac5_codec.c codecs/jedac5.h
-	cd codecs && $(MAKE) -C $(LINUXHDR) M=$$PWD modules
-
-codecs/snd-soc-jve1792%.ko: codecs/jve1792%.c codecs/pcm1792a.h
 	cd codecs && $(MAKE) -C $(LINUXHDR) M=$$PWD modules
 
 # Modified output from jedac5-overlay.dtb to jedac5.dtbo, 
