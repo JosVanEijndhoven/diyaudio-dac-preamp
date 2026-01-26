@@ -35,16 +35,14 @@
 				status = "okay";
 			};
 
-			jedac_dacl: dacL@4d {
-				//#sound-dai-cells = <0>; // register as aux_dev??
-				compatible = "jve,jve1792a-i2c";  // as opposed to the resident 'ti,pcm1792a'
+			jedac_dacl: pcm1792a@4d {
+				compatible = "jve,pcm1792a";  // my own i2c device
 				reg = <0x4d>; // left audio channel
 				status = "okay";
 			};
 
-			jedac_dacr: dacR@4c {
-				//#sound-dai-cells = <0>; // register as aux_dev??
-				compatible = "jve,jve1792a-i2c";  // as opposed to the resident 'ti,pcm1792a'
+			jedac_dacr: pcm1792a@4c {
+				compatible = "jve,pcm1792a";  // my own i2c device
 				reg = <0x4c>; // right audio channel
 				status = "okay";
 			};
