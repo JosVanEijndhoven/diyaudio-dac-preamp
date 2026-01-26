@@ -12,6 +12,7 @@
 	compatible = "brcm,bcm2710";
 
 
+	/* --- I2C Devices --- */
 	fragment@0 {
 		target = <&i2c1>;
 		__overlay__ {
@@ -41,7 +42,8 @@
 			};
 		};
 	};
-	
+
+  /* --- GPIO Pins --- */
 	fragment@1 {
     target = <&gpio>;
     __overlay__ {
@@ -53,36 +55,40 @@
     };
   };
 
+  /* --- The Sound Card --- */
 	fragment@2 {
-		target = <&sound>;
+		target-path = "/"; /* Targeting root instead of &sound */
+		// target = <&sound>;
 		__overlay__ {
-			compatible = "jve,jedac_bcm";
-			status = "okay";
+      jedac_sound: jedac_sound {
+        compatible = "jve,jedac_bcm";
+  			status = "okay";
 
-			jve,dac_l = <&jedac_dacl>;
-			jve,dac_r = <&jedac_dacr>;
+  			jve,dac_l = <&jedac_dacl>;
+	  		jve,dac_r = <&jedac_dacr>;
 
-			pinctrl-names = "default";
-      pinctrl-0 = <&jedac_pins>;
-      // define 'uisync' as name to find in the driver
-      // mode 22 = GPIO_OPEN_DRAIN | GPIO_PULL_UP
-			uisync-gpios = <&gpio 27 22>;
+  			pinctrl-names = "default";
+        pinctrl-0 = <&jedac_pins>;
+        // define 'uisync' as name to find in the driver
+        // mode 22 = GPIO_OPEN_DRAIN | GPIO_PULL_UP
+			  uisync-gpios = <&gpio 27 22>;
 
-      simple-audio-card,cpu {
-        sound-dai = <&i2s>;
-      };
+        simple-audio-card,cpu {
+          sound-dai = <&i2s>;
+        };
 
-      simple-audio-card,codec {
-        sound-dai = <&jedac_core>;
-      };
+        simple-audio-card,codec {
+          sound-dai = <&jedac_core>;
+        };
+			};
 		};
 	};
 
 	/* Explicitly enable I2S in a separate way that doesn't overlap the sound card */
-  fragment@3 {
-    target = <&i2s>;
-    __overlay__ {
-        status = "okay";
-    };
-  };
+  //fragment@3 {
+  //  target = <&i2s>;
+  //  __overlay__ {
+  //      status = "okay";
+  //  };
+  //};
 };
