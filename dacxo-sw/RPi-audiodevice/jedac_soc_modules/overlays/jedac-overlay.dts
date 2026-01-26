@@ -20,7 +20,7 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			jedac_codec: jedac_codec@10 {
+			jedac_core: jedac_codec@10 {
 				// property causes subnode as one of dai_link->num_codecs
 				// and inclusion in the dai_link->codecs array.
 				compatible = "jve,jedac_codec";
@@ -65,6 +65,7 @@
         i2s-controller = <&i2s>;
   			status = "okay";
 
+        jve,jedac_codec = <&jedac_core>;
   			jve,dac_l = <&jedac_dacl>;
 	  		jve,dac_r = <&jedac_dacr>;
 
@@ -79,7 +80,7 @@
         };
 
         simple-audio-card,codec {
-          sound-dai = <&jedac_codec>;
+          sound-dai = <&jedac_core>;
         };
 			};
 		};

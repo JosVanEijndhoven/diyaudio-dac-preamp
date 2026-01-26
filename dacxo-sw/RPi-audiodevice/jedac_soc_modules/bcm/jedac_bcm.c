@@ -284,12 +284,12 @@ static struct snd_soc_component* get_rtd_component(void) {
 // https://github.com/raspberrypi/linux/blob/rpi-6.12.y/sound/soc/bcm/pifi-40.c
 static int snd_jedac_probe(struct platform_device *pdev)
 {
-	int ret = -EINVAL;
+	int ret = 0;
 	struct device_node *np = pdev->dev.of_node;
 	jedac_sound_card.dev = &pdev->dev;
 	
 	if (np) {
-    pr_info("jedac_bcm: start probe(), device node OK!\n");
+    pr_info("jedac_bcm: start probe(), device node \"%s\"\n", np->name);
 	} else {
     pr_err("jedac_bcm: probe(): device node error!\n");
 		return -EINVAL;
@@ -332,6 +332,7 @@ static int snd_jedac_probe(struct platform_device *pdev)
     clients[i] = of_find_i2c_device_by_node(nodes[i]);
 		if (!clients[i]) {
 		  pr_info("jedac_bcm: For handle %s i2c device NOT found\n", name);
+			ret = -EPROBE_DEFER;  // maybe the i2c subsystem is not ready yet. try again later
 			continue;
 		}
 	  found_nodes++;
@@ -361,18 +362,16 @@ static int snd_jedac_probe(struct platform_device *pdev)
 	if (found_nodes == 4) {
 		// Good, all device tree nodes found!
 	  ret = devm_snd_soc_register_card(&pdev->dev, &jedac_sound_card);
-	  const char *msg = (ret == 0) ? "Success" :
+	}
+	const char *msg = (ret == 0) ? "Success" :
 	                  (ret == -EINVAL) ? "Incomplete snd_soc_card struct?" :
 										(ret == -ENODEV) ? "Linked component not found?" :
 										(ret == -ENOENT) ? "DT node or property missing?" :
 										(ret == -EIO) ? "Communication failure" :
 										(ret == -EPROBE_DEFER) ? "Deferred" : "Failure";
 	
-	  if (ret && (ret != -EPROBE_DEFER)) {
-      dev_err(&pdev->dev, "jedac_bcm: probe: register_card error: \"%s\", return %d\n", msg, ret);
-	  } else {
-		  pr_info("jedac_bcm: probe: register_card: \"%s\", return %d\n", msg, ret);
-	  }
+	if (ret && (ret != -EPROBE_DEFER)) {
+    dev_err(&pdev->dev, "jedac_bcm: probe: register_card error: \"%s\", return %d\n", msg, ret);
 	} else {
 		pr_info("jedac_bcm: probe: No register_card: nodes found=%d, return %d\n", found_nodes, ret);
 	}
