@@ -13,13 +13,6 @@
 
 
 	fragment@0 {
-		target = <&i2s>;
-		__overlay__ {
-			status = "okay";
-		};
-	};
-
-	fragment@1 {
 		target = <&i2c1>;
 		__overlay__ {
 			#address-cells = <1>;
@@ -48,7 +41,7 @@
 		};
 	};
 	
-	fragment@2 {
+	fragment@1 {
     target = <&gpio>;
     __overlay__ {
       jedac_pins: jedac_pins {
@@ -59,10 +52,11 @@
     };
   };
 
-	fragment@3 {
+	fragment@2 {
 		target = <&sound>;
 		__overlay__ {
 			compatible = "jve,jedac_bcm";
+			status = "okay";
 
 			jve,dac_l = <&jedac_dacl>;
 			jve,dac_r = <&jedac_dacr>;
@@ -82,4 +76,12 @@
       };
 		};
 	};
+
+	/* Explicitly enable I2S in a separate way that doesn't overlap the sound card */
+  fragment@3 {
+    target = <&i2s>;
+    __overlay__ {
+        status = "okay";
+    };
+  };
 };
