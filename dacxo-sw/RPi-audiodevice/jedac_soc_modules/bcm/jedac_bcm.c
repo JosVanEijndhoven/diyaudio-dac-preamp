@@ -76,7 +76,8 @@ static void jedac_pcm1792_init(struct i2c_client *dac, bool is_right_chan)
 		{ PCM1792A_MODE_CONTROL, 0x62},  // reg 19: slow unmute, filter slow rolloff
 		{ PCM1792A_STEREO_CONTROL, (is_right_chan ? 0x0c : 0x08)} // reg 20: set mono mode, choose channel
 	};
-  
+  pr_info("jedac_bcm: initialize pcm1792a(%s) i2c registers\n", (is_right_chan ? "right" : "left"));
+
 	for (int i = 0; i < ARRAY_SIZE(inits); i++) {
 		i2c_write_retry(dac, inits[i].reg_nr, inits[i].value);
 	}
@@ -87,7 +88,10 @@ static int jedac_bcm_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_soc_card *card = rtd->card;
   struct jedac_bcm_priv *priv = snd_soc_card_get_drvdata(card);
 
-	pr_info("jedac_bcm: jedac_bcm_init(card=\"%s\")\n", card->name);
+	pr_info("jedac_bcm: jedac_bcm_init(card=\"%s\", priv=%s)\n", card->name, ((priv == NULL) ? "NULL!" : "OK"));
+	if (!priv)
+	  return -EINVAL;
+
   // Note that the FPGA has already done its own init during its 'probe()'
 	// reg_chan = GPO0_POWERUP | GPO0_CLKMASTER;
 	// i2cerr = snd_soc_component_write(codec, REGDAC_GPO0, reg_chan);
@@ -307,7 +311,7 @@ static int snd_jedac_probe(struct platform_device *pdev)
 		pr_err("jedac_bcm: failed to access the 'uisync' gpio pin!\n");
 		return -EINVAL;
 	} else {
-		pr_err("jedac_bcm: successfully acquired 'uisync' gpio pin!\n");
+		pr_info("jedac_bcm: successfully acquired 'uisync' gpio pin!\n");
 	}
 
 	struct snd_soc_dai_link *dai = &jedac_dai_link[0];
@@ -325,9 +329,10 @@ static int snd_jedac_probe(struct platform_device *pdev)
 		pr_info("jedac_bcm: Found handle %s for card\n", handle);
 	  found_nodes++;
 	}
-	priv->fpga = of_find_i2c_device_by_node(nodes[0]);
-	priv->dac_l = of_find_i2c_device_by_node(nodes[1]);
-	priv->dac_r = of_find_i2c_device_by_node(nodes[2]);
+  priv->fpga  = nodes[0] ? of_find_i2c_device_by_node(nodes[0]) : NULL;
+  priv->dac_l = nodes[1] ? of_find_i2c_device_by_node(nodes[1]) : NULL;
+  priv->dac_r = nodes[2] ? of_find_i2c_device_by_node(nodes[2]) : NULL;
+	
 	priv->prev_volume = 0;
 
 	if (!priv->fpga) {
