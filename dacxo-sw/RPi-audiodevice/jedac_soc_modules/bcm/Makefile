@@ -1,5 +1,5 @@
 KDIR=/lib/modules/$(shell uname -r)/build
-obj-m += jedac5_bcm.o
+obj-m += jedac_bcm.o
 
 default:
 	$(MAKE) -C $(KDIR) M=$$PWD

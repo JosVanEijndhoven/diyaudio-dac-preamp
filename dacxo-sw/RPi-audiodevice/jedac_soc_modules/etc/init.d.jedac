@@ -39,18 +39,18 @@ log_action_end_msg_and_exit()
 }
 
 [ -x /usr/bin/dtoverlay ] || { echo "${MYNAME}: Error: dtoverlay not available!" >&2 ; exit 1 ; }
-[ -f /boot/overlays/jedac5.dtbo ] || { echo "${MYNAME}: Error: jedac boot overlay not found!" >&2 ; exit 1 ; }
+[ -f /boot/overlays/jedac.dtbo ] || { echo "${MYNAME}: Error: jedac boot overlay not found!" >&2 ; exit 1 ; }
 
 case "$1" in
   start)
 	log_action_begin_msg "${MYNAME}: loading jedac drivers through dtoverlay"
-	/usr/bin/dtoverlay jedac5
+	/usr/bin/dtoverlay jedac
 	exit 0
 	;;
   stop)
 	log_action_begin_msg "${MYNAME}: unload jedac drivers"
-	/usr/bin/dtoverlay -r jedac5
-	/sbin/modprobe -r snd-soc-jedac5_codec snd-soc-pcm1792a-i2c snd-soc-jedac5_bcm
+	/usr/bin/dtoverlay -r jedac
+	/sbin/modprobe -r snd-soc-jedac_codec snd-soc-pcm1792a-i2c snd-soc-jedac_bcm
 	exit 0
 	;;
   restart|force-reload)

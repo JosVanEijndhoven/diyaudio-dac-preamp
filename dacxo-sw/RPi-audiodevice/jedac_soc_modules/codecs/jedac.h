@@ -15,13 +15,13 @@
  * GNU General Public License for more details.
  */
  
-#ifndef _JEDAC5_H
-#define _JEDAC5_H
+#ifndef _JEDAC_H
+#define _JEDAC_H
 
 #define DAC_IS_CLK_MASTER 1
 
 #ifdef DAC_IS_CLK_MASTER
-#define JEDAC5_RATES (SNDRV_PCM_RATE_44100  | SNDRV_PCM_RATE_48000 |\
+#define JEDAC_RATES (SNDRV_PCM_RATE_44100  | SNDRV_PCM_RATE_48000 |\
 			          SNDRV_PCM_RATE_88200  | SNDRV_PCM_RATE_96000 |\
 			          SNDRV_PCM_RATE_176400 | SNDRV_PCM_RATE_192000)
 					  // i2s left justified output, rpi is clock slave
@@ -31,41 +31,24 @@
 #define JEDAC_DAIFMT (SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_CONT |\
 					  SND_SOC_DAIFMT_NB_NF  | SND_SOC_DAIFMT_CBP_CFP)
 #else
-#define JEDAC5_RATES (SNDRV_PCM_RATE_44100  | SNDRV_PCM_RATE_48000 |\
+#define JEDAC_RATES (SNDRV_PCM_RATE_44100  | SNDRV_PCM_RATE_48000 |\
 			          SNDRV_PCM_RATE_88200  | SNDRV_PCM_RATE_96000)
 #define JEDAC_DAIFMT (SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_CONT |\
 					  SND_SOC_DAIFMT_NB_NF  | SND_SOC_DAIFMT_CBS_CFS)
 #endif
 					  
-#define JEDAC5_FORMATS (SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S16_LE)
-//#define JEDAC5_FORMATS (SNDRV_PCM_FMTBIT_S32_LE)
+#define JEDAC_FORMATS (SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S16_LE)
+//#define JEDAC_FORMATS (SNDRV_PCM_FMTBIT_S32_LE)
 
 #define DAC_max_attenuation_dB 80
 #define DAC_step_attenuation_dB 1
 
-#ifdef CS8416_SWMODE
-#define REGDAC_control0		0
-#define REGDAC_control1		1
-#define REGDAC_control2		2
-#define REGDAC_control3		3
-#define REGDAC_control4		4
-#define REGDAC_SerAudioData	5
-#define REGDAC_RecvErrMask	6
-#define REGDAC_IntMask		7
-#define REGDAC_IntModeMSB	8
-#define REGDAC_IntModeLSB	9
-#define REGDAC_RecvChanStat	0x0a
-#define REGDAC_AudioFmtDect	0x0b
-#define REGDAC_RecvErr		0x0c
-#define REGDAC_MAX			0x0c
-#else
 // Added in FPGA i2c interface, same device adress as the cs8416
 #define REGDAC_GPO0			0x30
 #define REGDAC_GPO1			0x31
 #define REGDAC_GPI0			0x34
 #define REGDAC_GPI1			0x35
 #define REGDAC_MAX			0x35
-#endif
 
 // If GPO0_CLKMASTER set, use i2s dac input, else one of the s/pdif inputs
 #define GPO0_CLKMASTER		0x01
@@ -80,4 +63,4 @@
 
 #define GPIO_UI_TRIG    27
 		  
-#endif /* _JEDAC5_H */
+#endif /* _JEDAC_H */

@@ -1,5 +1,5 @@
 KDIR=/lib/modules/$(shell uname -r)/build
-obj-m += jedac5_codec.o
+obj-m += jedac_codec.o
 
 default:
 	$(MAKE) -C $(KDIR) M=$$PWD

@@ -15,11 +15,11 @@ BACKUP     := ../jedac-rpi-$(DATE).tgz
 KERNEL     ?= kernel7
 export KERNEL
 
-LOCAL_KOS  := codecs/snd-soc-jedac5_codec.ko \
-              bcm/snd-soc-jedac5_bcm.ko
+LOCAL_KOS  := codecs/snd-soc-jedac_codec.ko \
+              bcm/snd-soc-jedac_bcm.ko
 
 INSTALL_KOS := $(addsuffix .xz,$(addprefix $(INSTALLDIR)/,$(notdir $(LOCAL_KOS))))
-INSTALL_DTB := /boot/overlays/jedac5.dtbo
+INSTALL_DTB := /boot/overlays/jedac.dtbo
 INSTALL_INITD := /etc/init.d/jedac
 MODULES_ALIAS := /lib/modules/$(KERNELREV)/modules.alias
 
@@ -58,12 +58,12 @@ clean_install: clean
 	sudo rm -f $(INSTALL_KOS) $(INSTALL_DTB)
 
 uninstall:
-	sudo dtoverlay -v -r jedac5
-	sudo modprobe -v -r snd_soc_jedac5_codec snd_soc_jedac5_bcm
+	sudo dtoverlay -v -r jedac
+	sudo modprobe -v -r snd_soc_jedac_codec snd_soc_jedac_bcm
 
 test_dtoverlay: $(INSTALL_KOS) $(INSTALL_DTB)
 	sudo sysctl -w kernel.printk=6 ;\
-	sudo dtoverlay -v jedac5 ;\
+	sudo dtoverlay -v jedac ;\
 	sleep 2 ;\
 	sudo sysctl -w kernel.printk=3 ;\
 	lsmod | grep 'jedac'
@@ -73,12 +73,12 @@ dry_run.lst: dry_run.dtbo
 	fdtdump $< > $@
 
 dry_run.dtbo: $(INSTALL_DTB)
-	sudo dtoverlay -D -v jedac5
+	sudo dtoverlay -D -v jedac
 
 $(MODULES_ALIAS): $(INSTALL_KOS)
 	sudo depmod -a
 
-$(INSTALLDIR)/snd-soc-jedac5_bcm.ko.xz: bcm/snd-soc-jedac5_bcm.ko | $(INSTALLDIR)
+$(INSTALLDIR)/snd-soc-jedac_bcm.ko.xz: bcm/snd-soc-jedac_bcm.ko | $(INSTALLDIR)
 	cd bcm && sudo $(MAKE) -C $(LINUXHDR) M=$$PWD modules_install
 
 $(INSTALLDIR)/snd-soc-%.ko.xz: codecs/snd-soc-%.ko  | $(INSTALLDIR)
@@ -87,16 +87,16 @@ $(INSTALLDIR)/snd-soc-%.ko.xz: codecs/snd-soc-%.ko  | $(INSTALLDIR)
 $(INSTALL_INITD): etc/init.d.jedac
 	sudo cp $< $@ && sudo chmod 0755 $@
 
-bcm/snd-soc-jedac5_bcm.ko: bcm/jedac5_bcm.c codecs/jedac5.h codecs/pcm1792a.h
+bcm/snd-soc-jedac_bcm.ko: bcm/jedac_bcm.c codecs/jedac.h codecs/pcm1792a.h
 	cd bcm && $(MAKE) -C $(LINUXHDR) M=$$PWD modules
 
-codecs/snd-soc-jedac5_codec.ko: codecs/jedac5_codec.c codecs/jedac5.h
+codecs/snd-soc-jedac_codec.ko: codecs/jedac_codec.c codecs/jedac.h
 	cd codecs && $(MAKE) -C $(LINUXHDR) M=$$PWD modules
 
-# Modified output from jedac5-overlay.dtb to jedac5.dtbo, 
+# Modified output from jedac-overlay.dtb to jedac.dtbo, 
 # in accordance with new debian naming policy as of version 4.4
-$(INSTALL_DTB) : overlays/jedac5.dtbo
+$(INSTALL_DTB) : overlays/jedac.dtbo
 	sudo cp $< $@
 
-overlays/jedac5.dtbo : overlays/jedac5-overlay.dts
+overlays/jedac.dtbo : overlays/jedac-overlay.dts
 	dtc -@ -I dts -O dtb -o $@ $<

@@ -1,2 +1,2 @@
-obj-m := snd-soc-jedac5_bcm.o
-snd-soc-jedac5_bcm-y := jedac5_bcm.o
+obj-m := snd-soc-jedac_bcm.o
+snd-soc-jedac_bcm-y := jedac_bcm.o

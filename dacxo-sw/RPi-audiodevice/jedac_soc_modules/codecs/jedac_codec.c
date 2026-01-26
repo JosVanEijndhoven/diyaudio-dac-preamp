@@ -39,41 +39,41 @@
 #include <sound/tlv.h>
 
 
-#include "jedac5.h"
+#include "jedac.h"
 
-static const struct reg_default jedac5_reg_defaults[] = {
+static const struct reg_default jedac_reg_defaults[] = {
 	{ REGDAC_GPO0,          0x00 },
 	{ REGDAC_GPO1,          0x00 },
 	{ REGDAC_GPI0,          0x00 },
 	{ REGDAC_GPI1,          0x00 },
 };
 
-static bool jedac5_writeable(struct device *dev, unsigned int reg) {
+static bool jedac_writeable(struct device *dev, unsigned int reg) {
 	return (reg == REGDAC_GPO0) || (reg == REGDAC_GPO1);
 }
 
-static bool jedac5_readable(struct device *dev, unsigned int reg) {
-	return (reg == REGDAC_GPI0) || (reg == REGDAC_GPI1) || jedac5_writeable(dev, reg);
+static bool jedac_readable(struct device *dev, unsigned int reg) {
+	return (reg == REGDAC_GPI0) || (reg == REGDAC_GPI1) || jedac_writeable(dev, reg);
 }
 
-static bool jedac5_volatile(struct device *dev, unsigned int reg) {
+static bool jedac_volatile(struct device *dev, unsigned int reg) {
 	return (reg == REGDAC_GPI0) || (reg == REGDAC_GPI1);  // run-time status
 }
 
-const struct regmap_config jedac5_regmap_config = {
+const struct regmap_config jedac_regmap_config = {
 	.reg_bits = 8,
 	.val_bits = 8,
 	.max_register = REGDAC_GPI1,
-	.readable_reg = jedac5_readable,
-	.writeable_reg = jedac5_writeable,
-	.volatile_reg = jedac5_volatile,
-	.reg_defaults = jedac5_reg_defaults,
-	.num_reg_defaults = ARRAY_SIZE(jedac5_reg_defaults),
+	.readable_reg = jedac_readable,
+	.writeable_reg = jedac_writeable,
+	.volatile_reg = jedac_volatile,
+	.reg_defaults = jedac_reg_defaults,
+	.num_reg_defaults = ARRAY_SIZE(jedac_reg_defaults),
 	.cache_type = REGCACHE_RBTREE,
 };
 
 #if 0
-struct jedac5_codec_priv {
+struct jedac_codec_priv {
 	struct regmap *regmap;
 };
 #endif
@@ -81,7 +81,7 @@ struct jedac5_codec_priv {
 static int codec_set_dai_fmt(struct snd_soc_dai *codec_dai,
                              unsigned int format)
 {
-	pr_warn("jedac5_codec set_dai_fmt(format=%u) DUMMY\n", format);
+	pr_warn("jedac_codec set_dai_fmt(format=%u) DUMMY\n", format);
 	return 0;
 }
 
@@ -109,9 +109,9 @@ static int jedac_i2c_set_i2s(struct snd_soc_component *codec, int samplerate)
 	}
 	
 	// send a trigger to the ui controller: denote a busy i2c and changed dac settings
-	// struct jedac5_bcm_priv *priv = snd_soc_card_get_drvdata(&jedac5_sound_card);
+	// struct jedac_bcm_priv *priv = snd_soc_card_get_drvdata(&jedac_sound_card);
 	// if (0 == gpiod_get_value(priv->uisync_gpio)) {
-	// 	pr_warn("jedac5_bcm: jedac_i2c_set_i2s: unexpected 'low' on ui-trig gpio!");
+	// 	pr_warn("jedac_bcm: jedac_i2c_set_i2s: unexpected 'low' on ui-trig gpio!");
 	// }
 	// gpiod_set_value(priv->uisync_gpio, 0);
 
@@ -123,7 +123,7 @@ static int jedac_i2c_set_i2s(struct snd_soc_component *codec, int samplerate)
 		i2cerr = gpo_val;
 
 	// gpiod_set_value(priv->uisync_gpio, 1);  // clear the ui trigger pulse
-	pr_info("jedac5_bcm: jedac_i2c_set_i2s: read GPI=0x%02x. i2c err=%d\n", (int)(gpo_val & 0xff), i2cerr);
+	pr_info("jedac_codec: i2c_set_i2s: read GPI=0x%02x. i2c err=%d\n", (int)(gpo_val & 0xff), i2cerr);
 
 	return i2cerr;
 }
@@ -135,8 +135,6 @@ static int codec_hw_params(struct snd_pcm_substream *substream,
 	unsigned int rate = params_rate(params);
   struct snd_soc_component *codec = dai->component;
 
-	pr_warn("jedac5_codec hw_params( rate=%d)\n", rate);
-
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
 	int samplerate = params_rate(params);
@@ -146,7 +144,7 @@ static int codec_hw_params(struct snd_pcm_substream *substream,
 	int err_rate = jedac_i2c_set_i2s(codec, samplerate);
 	
 	//	snd_pcm_format_physical_width(params_format(params));
-	pr_info("jedac5_bcm:snd_rpi_jedac5_hw_params(rate=%d, width=%d) err_clk=%d err_rate=%d\n",
+	pr_info("jedac_codec: hw_params(rate=%d, width=%d) err_clk=%d err_rate=%d\n",
 		samplerate, samplewidth, err_clk, err_rate);
 
 	return err_clk;
@@ -158,14 +156,14 @@ static const struct snd_soc_dai_ops codec_dai_ops = {
 	// .mute_stream = codec_digital_mute
 };
 
-static struct snd_soc_dai_driver jedac5_dai = {
-	.name = "jedac5_codec",
+static struct snd_soc_dai_driver jedac_dai = {
+	.name = "jedac_codec",
 	.playback = {
 		.stream_name = "Playback",
 		.channels_min = 2,
 		.channels_max = 2,
-		.rates = JEDAC5_RATES,
-		.formats = JEDAC5_FORMATS
+		.rates = JEDAC_RATES,
+		.formats = JEDAC_FORMATS
 	},
 	.ops = &codec_dai_ops
 };
@@ -196,7 +194,7 @@ static void jedac_codec_remove(struct snd_soc_component *component)
 }
 
 
-static struct snd_soc_component_driver jedac5_codec_driver = {
+static struct snd_soc_component_driver jedac_codec_driver = {
 	.name         = "jedac codec driver",
 	.probe 				= jedac_codec_probe,
 	.remove 			= jedac_codec_remove,
@@ -210,9 +208,9 @@ static int codec_i2c_probe(struct i2c_client *i2c)
 	// called when the os encounters this i2c device.
 	// Crucial: its call to snd_soc_register_component where this i2c device announces
 	// that it is part of the ASOC sound system
-	pr_info("jedac5_codec i2c_probe(name=\"%s\", addr=0x%02x)\n", i2c->name, (i2c->addr & 0x7f));
+	pr_info("jedac_codec i2c_probe(name=\"%s\", addr=0x%02x)\n", i2c->name, (i2c->addr & 0x7f));
 	
-	struct regmap *regmap = devm_regmap_init_i2c(i2c, &jedac5_regmap_config);
+	struct regmap *regmap = devm_regmap_init_i2c(i2c, &jedac_regmap_config);
 	if (IS_ERR(regmap)) {
 		ret = PTR_ERR(regmap);
 		dev_err(dev, "Failed to register i2c regmap: %d\n", ret);
@@ -220,22 +218,22 @@ static int codec_i2c_probe(struct i2c_client *i2c)
 	}
 
 #if 0
- 	struct jedac5_codec_priv *jedac5_priv = devm_kzalloc(dev, sizeof(struct jedac5_codec_priv), GFP_KERNEL);
-	if (!jedac5_priv)
+ 	struct jedac_codec_priv *jedac_priv = devm_kzalloc(dev, sizeof(struct jedac_codec_priv), GFP_KERNEL);
+	if (!jedac_priv)
 		return -ENOMEM;
 
-	dev_set_drvdata(dev, jedac5_priv);
-	jedac5_priv->regmap = regmap;
+	dev_set_drvdata(dev, jedac_priv);
+	jedac_priv->regmap = regmap;
 #endif
 
-	ret = snd_soc_register_component(dev, &jedac5_codec_driver, &jedac5_dai, 1);
+	ret = snd_soc_register_component(dev, &jedac_codec_driver, &jedac_dai, 1);
 	if (ret && ret != -EPROBE_DEFER) {
-		dev_err(dev, "jedac5_codec i2c_probe: Failed to register codec component, err=%d\n", ret);
+		dev_err(dev, "jedac_codec i2c_probe: Failed to register codec component, err=%d\n", ret);
 	}
 	if (!ret) {
-		pr_info("jedac5_codec i2c_probe: registered codec component!\n");
+		pr_info("jedac_codec i2c_probe: registered codec component!\n");
 	} else {
- 	  pr_info("jedac5_codec i2c_probe: register component returns %d\n", ret);
+ 	  pr_info("jedac_codec i2c_probe: register component returns %d\n", ret);
 	}
 	return ret;
 }
@@ -243,7 +241,7 @@ static int codec_i2c_probe(struct i2c_client *i2c)
 static void codec_i2c_remove(struct i2c_client *i2c)
 {
 	const char i2c_standby[] = {REGDAC_GPO0, 0x00};
-	pr_info("jedac5_codec i2c_remove(), DAC power-down\n");
+	pr_info("jedac_codec i2c_remove(), DAC power-down\n");
 	
 	// power-down the DAC board to stand-by
 	i2c_master_send(i2c, i2c_standby, 2);
@@ -251,23 +249,23 @@ static void codec_i2c_remove(struct i2c_client *i2c)
 }
 
 static const struct i2c_device_id codec_i2c_id[] = {
-	{ "jedac5_codec", 0 },
+	{ "jedac_codec", 0 },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, codec_i2c_id);
 
-static const struct of_device_id jedac5_of_match[] = {
-	{ .compatible = "jve,jedac5_codec", },
+static const struct of_device_id jedac_of_match[] = {
+	{ .compatible = "jve,jedac_codec", },
 	{ }
 };
-MODULE_DEVICE_TABLE(of, jedac5_of_match);
+MODULE_DEVICE_TABLE(of, jedac_of_match);
 
 static struct i2c_driver codec_i2c_driver = {
 	.driver = {
 		.name = "jedac codec i2c driver",
 		.owner = THIS_MODULE,
-//		.pm = &jedac5_pm,
-		.of_match_table = jedac5_of_match,
+//		.pm = &jedac_pm,
+		.of_match_table = jedac_of_match,
 	},
 	.probe = codec_i2c_probe,
 	.remove = codec_i2c_remove,
@@ -275,6 +273,6 @@ static struct i2c_driver codec_i2c_driver = {
 };
 module_i2c_driver(codec_i2c_driver);
 
-MODULE_DESCRIPTION("ASoC jedac5 codec driver");
+MODULE_DESCRIPTION("ASoC jedac codec driver");
 MODULE_AUTHOR("Jos van Eijndhoven <jos@vaneijndhoven.net>");
 MODULE_LICENSE("GPL v2");

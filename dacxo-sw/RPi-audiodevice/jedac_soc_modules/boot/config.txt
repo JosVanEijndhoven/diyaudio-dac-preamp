@@ -58,7 +58,7 @@ dtparam=i2s=on
 # Additional overlays and parameters are documented /boot/overlays/README
 
 # Enable my DAC at system boot
-dtoverlay=jedac5
+dtoverlay=jedac
 
 # Enable audio (loads snd_bcm2835)
 dtparam=audio=on
