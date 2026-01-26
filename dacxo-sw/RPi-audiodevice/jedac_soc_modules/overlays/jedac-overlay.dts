@@ -62,6 +62,7 @@
 		__overlay__ {
       jedac_sound: jedac_sound {
         compatible = "jve,jedac_bcm";
+        i2s-controller = <&i2s>;
   			status = "okay";
 
   			jve,dac_l = <&jedac_dacl>;
@@ -84,11 +85,11 @@
 		};
 	};
 
-	/* Explicitly enable I2S in a separate way that doesn't overlap the sound card */
-  //fragment@3 {
-  //  target = <&i2s>;
-  //  __overlay__ {
-  //      status = "okay";
-  //  };
-  //};
+  /* Explicitly enable I2S in a separate way that doesn't overlap the sound card */
+  fragment@3 {
+    target = <&i2s>;
+    __overlay__ {
+        status = "okay";
+    };
+  };
 };
