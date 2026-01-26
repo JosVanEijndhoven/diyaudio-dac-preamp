@@ -326,13 +326,15 @@ static int snd_jedac_probe(struct platform_device *pdev)
 		if (!nodes[i]) {
 			dev_err(&pdev->dev, "jedac_bcm: handle %s not found!\n", name);
 		  clients[i] = NULL;
+			ret = -EINVAL;
 			continue;
 		}
 
     clients[i] = of_find_i2c_device_by_node(nodes[i]);
 		if (!clients[i]) {
 		  pr_info("jedac_bcm: For handle %s i2c device NOT found\n", name);
-			ret = -EPROBE_DEFER;  // maybe the i2c subsystem is not ready yet. try again later
+			if (ret == 0)
+			  ret = -EPROBE_DEFER;  // maybe the i2c subsystem is not ready yet. try again later
 			continue;
 		}
 	  found_nodes++;
@@ -372,8 +374,10 @@ static int snd_jedac_probe(struct platform_device *pdev)
 	
 	if (ret && (ret != -EPROBE_DEFER)) {
     dev_err(&pdev->dev, "jedac_bcm: probe: register_card error: \"%s\", return %d\n", msg, ret);
+	} else if (ret) {
+    dev_warn(&pdev->dev, "jedac_bcm: probe: register_card: \"%s\", return %d\n", msg, ret);
 	} else {
-		pr_info("jedac_bcm: probe: No register_card: nodes found=%d, return %d\n", found_nodes, ret);
+		pr_info("jedac_bcm: probe: Register_card: Success!\n");
 	}
 
 	// fix refcount of_node_get()/of_node_put()
