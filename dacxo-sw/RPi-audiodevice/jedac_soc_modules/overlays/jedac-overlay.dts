@@ -30,6 +30,7 @@
 			jedac_dacl: pcm1792a@4d {
 				compatible = "jve,pcm1792a";  // my own i2c device
 				reg = <0x4d>; // left audio channel
+        #sound-dai-cells = <0>;
 				status = "okay";
 			};
 
