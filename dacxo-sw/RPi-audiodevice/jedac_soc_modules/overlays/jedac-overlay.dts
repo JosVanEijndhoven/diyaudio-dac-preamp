@@ -24,13 +24,13 @@
 				// and inclusion in the dai_link->codecs array.
 				compatible = "jve,jedac_codec";
 				reg = <0x10>; // Is address of onboard fpga
+        #sound-dai-cells = <0>;
 				status = "okay";
 			};
 
 			jedac_dacl: pcm1792a@4d {
 				compatible = "jve,pcm1792a";  // my own i2c device
 				reg = <0x4d>; // left audio channel
-        #sound-dai-cells = <0>;
 				status = "okay";
 			};
 
