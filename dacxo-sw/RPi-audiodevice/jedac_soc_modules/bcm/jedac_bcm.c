@@ -261,7 +261,7 @@ static struct snd_soc_card jedac_sound_card = {
 
 /* node names of the i2c devices, to match with the jedac-overlay.dts */
 static const char* i2c_node_refs[] = {
-	"jve,dac_core",
+	"jve,jedac_codec",
 	"jve,dac_l",
 	"jve,dac_r"
 };
