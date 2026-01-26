@@ -27,7 +27,6 @@
 			status = "okay";
 
 			jedac_core: jedac_codec@10 {
-				#sound-dai-cells = <0>;
 				// property causes subnode as one of dai_link->num_codecs
 				// and inclusion in the dai_link->codecs array.
 				compatible = "jve,jedac_codec";
@@ -64,20 +63,23 @@
 		target = <&sound>;
 		__overlay__ {
 			compatible = "jve,jedac_bcm";
-			i2s-controller = <&i2s>;
-			jve,dac_core = <&jedac_core>;
+
 			jve,dac_l = <&jedac_dacl>;
 			jve,dac_r = <&jedac_dacr>;
+
 			pinctrl-names = "default";
       pinctrl-0 = <&jedac_pins>;
-			status = "okay";
-
       // define 'uisync' as name to find in the driver
       // mode 22 = GPIO_OPEN_DRAIN | GPIO_PULL_UP
 			uisync-gpios = <&gpio 27 22>;
+
+      simple-audio-card,cpu {
+        sound-dai = <&i2s>;
+      };
+
+      simple-audio-card,codec {
+        sound-dai = <&jedac_core>;
+      };
 		};
 	};
-
-
-
 };
