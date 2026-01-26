@@ -318,35 +318,28 @@ static int snd_jedac_probe(struct platform_device *pdev)
 	/* find my three i2c components on the dac board: an FPGA and two PCM1792 */
   int found_nodes = 0;
 	struct device_node *nodes[3];
+	struct i2c_client *clients[3];
 	for (int i = 0; i < 3; i++) {
-		const char *handle = i2c_node_refs[i];
-		nodes[i] = of_parse_phandle(np, handle, 0);
+		const char *name = i2c_node_refs[i];
+		nodes[i] = of_parse_phandle(np, name, 0);
 			
 		if (!nodes[i]) {
-			dev_err(&pdev->dev, "jedac_bcm: handle %s not found!\n", handle);
+			dev_err(&pdev->dev, "jedac_bcm: handle %s not found!\n", name);
+		  clients[i] = NULL;
 			continue;
 		}
-		pr_info("jedac_bcm: Found handle %s for card\n", handle);
+
+    clients[i] = of_find_i2c_device_by_node(nodes[i]);
+		if (!clients[i]) {
+		  pr_info("jedac_bcm: For handle %s i2c device NOT found\n", name);
+			continue;
+		}
 	  found_nodes++;
 	}
-  priv->fpga  = nodes[0] ? of_find_i2c_device_by_node(nodes[0]) : NULL;
-  priv->dac_l = nodes[1] ? of_find_i2c_device_by_node(nodes[1]) : NULL;
-  priv->dac_r = nodes[2] ? of_find_i2c_device_by_node(nodes[2]) : NULL;
-	
+  priv->fpga  = clients[0];
+  priv->dac_l = clients[1];
+  priv->dac_r = clients[2];
 	priv->prev_volume = 0;
-
-	if (!priv->fpga) {
-		dev_warn(&pdev->dev, "jedac_bcm: fpga chip not found on i2c bus addr=0x%02x!\n",
-			priv->fpga->addr);
-	}
-	if (!priv->dac_l) {
-		dev_warn(&pdev->dev, "jedac_bcm: left dac chip not found on i2c bus addr=0x%02x!\n",
-			priv->dac_l->addr);
-	}
-	if (!priv->dac_r) {
-		dev_warn(&pdev->dev, "jedac_bcm: right dac chip not found on i2c bus addr=0x%02x!\n",
-		  priv->dac_r->addr);
-	}
 
 	struct device_node *i2s_node = of_parse_phandle(np, "i2s-controller", 0);
 	if (!i2s_node) {
@@ -357,8 +350,6 @@ static int snd_jedac_probe(struct platform_device *pdev)
 	}
 
 	// We have one i2s 'digital audio interface' towards the board FPGA
-  pr_info("jedac_bcm: dai num_cpus=%u, num_platforms=%u, num_codecs=%u\n",
-    dai->num_cpus, dai->num_platforms, dai->num_codecs);
   dai->cpus[0].name = NULL;
 	dai->cpus[0].dai_name = NULL;
 	dai->cpus[0].of_node = i2s_node;
