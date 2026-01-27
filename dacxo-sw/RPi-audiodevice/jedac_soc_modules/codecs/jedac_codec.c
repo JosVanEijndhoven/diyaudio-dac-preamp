@@ -87,7 +87,7 @@ static int codec_set_dai_fmt(struct snd_soc_dai *codec_dai,
 
 static int jedac_i2c_set_i2s(struct snd_soc_component *codec, int samplerate)
 {
-	int i2cerr, freq_base, freq_mult, gpo_val;
+	int freq_base, freq_mult;
 	
 	if (samplerate == 48000 || samplerate == 96000 || samplerate == 192000)
 		freq_base = 1; // enable other xtal oscillator
@@ -115,17 +115,27 @@ static int jedac_i2c_set_i2s(struct snd_soc_component *codec, int samplerate)
 	// }
 	// gpiod_set_value(priv->uisync_gpio, 0);
 
-	gpo_val = GPO0_POWERUP | GPO0_CLKMASTER | (freq_base << 1) | (freq_mult << 2);
-	i2cerr = snd_soc_component_write(codec, REGDAC_GPO0, gpo_val);
+	struct regmap *map = dev_get_regmap(codec->dev, NULL);
+	if (!map) {
+		pr_err("jedac codec: regmap not found error!");
+    return -EINVAL;
+	}
+
+	unsigned int gpo_val = GPO0_POWERUP | GPO0_CLKMASTER | (freq_base << 1) | (freq_mult << 2);
+	int i2cerr_w = regmap_write(map, REGDAC_GPO0, gpo_val);
 	// as test, read-back fpga status byte
-	gpo_val = snd_soc_component_read(codec, REGDAC_GPI0);
-	if (gpo_val < 0) // values >=0 indicate valid read, no error
-		i2cerr = gpo_val;
+	unsigned int gpi_val = 0;
+	int i2cerr_r = regmap_read(map, REGDAC_GPI0, &gpi_val);
 
 	// gpiod_set_value(priv->uisync_gpio, 1);  // clear the ui trigger pulse
-	pr_info("jedac_codec: i2c_set_i2s: read GPI=0x%02x. i2c err=%d\n", (int)(gpo_val & 0xff), i2cerr);
+	if (i2cerr_w == 0 && i2cerr_r == 0)
+	  pr_info("jedac_codec: i2c_set_i2s: write GPO0=0x%02x, read GPI0=0x%02x: OK!\n",
+		  (int)(gpo_val), (int)(gpi_val));
+	else
+	  pr_warn("jedac_codec: i2c_set_i2s: write GPO0=0x%02x, read GPI0=0x%02x: i2c write error=%d, i2c read error=%d\n",
+		  (int)(gpo_val), (int)(gpi_val), i2cerr_w, i2cerr_r);
 
-	return i2cerr;
+	return (i2cerr_w == 0) ? i2cerr_r : i2cerr_w;
 }
 
 static int codec_hw_params(struct snd_pcm_substream *substream,
@@ -177,7 +187,7 @@ static int jedac_codec_probe(struct snd_soc_component *codec)
 
 	// Ensure power-up, make the DAC as i2s clock master
 	uint8_t reg_chan = GPO0_POWERUP | GPO0_CLKMASTER;
-	int i2cerr = snd_soc_component_write(codec, REGDAC_GPO0, reg_chan);
+	int i2cerr = regmap_write(regmap, REGDAC_GPO0, reg_chan);
 
 	pr_info("jedac_codec probe(): initialize component \"%s\": %s\n",
 	  (codec && codec->name) ? codec->name : "NULL",
