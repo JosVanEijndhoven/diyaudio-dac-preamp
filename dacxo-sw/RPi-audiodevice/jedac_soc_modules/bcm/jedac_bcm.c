@@ -278,6 +278,8 @@ static int jedac_bcm_power_event(struct snd_soc_dapm_widget *w,
 		  if (!err) {
 			  power_measured_on = (gpi1_val & GPI1_ANAPWR) != 0;
 		  }
+			pr_info("jedac_bcm: power_event: DAC rails: regmap_err=%d, gpi1=0x%02x, Vana confirmed=%d\n",
+				err, gpi1_val, power_measured_on);
 		}
 
     /* C. Now that DACs have power/clock, initialize them via I2C */
