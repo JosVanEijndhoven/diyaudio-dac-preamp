@@ -66,9 +66,9 @@ test_dtoverlay: $(INSTALL_KOS) $(INSTALL_DTB)
 	sudo sysctl -w kernel.printk=6 ;\
 	sudo dtoverlay -v jedac ;\
 	sleep 2 ;\
-	sudo sysctl -w kernel.printk=3 ;\
-	lsmod | grep 'jedac'
-	dmesg | grep 'jedac'
+	lsmod | grep 'jedac' ;\
+	dmesg | grep 'jedac' ;\
+	sudo sysctl -w kernel.printk=3
 
 dry_run.lst: dry_run.dtbo
 	fdtdump $< > $@

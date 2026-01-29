@@ -271,13 +271,23 @@ static int jedac_bcm_power_event(struct snd_soc_dapm_widget *w,
     priv->power_transition_busy = 1;
 
     /* B. Wait for analog power to come up slowly */
-    msleep(200);
+		uint8_t power_measured_on = 0;
+		for (int i = 0; i < 5 && !power_measured_on; i++) {
+      msleep(200);  // millisecnds
+	    unsigned int gpi1_val = 0;
+      err = regmap_read(priv->fpga_regs, REGDAC_GPI1, &gpi1_val);
+		  if (!err) {
+			  power_measured_on = (gpi1_val & GPI1_ANAPWR) != 0;
+		  }
+		}
 
     /* C. Now that DACs have power/clock, initialize them via I2C */
-		jedac_pcm1792_init(priv->dac_l, false);
-		jedac_pcm1792_init(priv->dac_r, true);
+		if (power_measured_on) {
+		  jedac_pcm1792_init(priv->dac_l, false);
+		  jedac_pcm1792_init(priv->dac_r, true);
+		}
   }
-  return 0;
+  return err;
 }
 
 /* 2. Define the Widget and Route */
