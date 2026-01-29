@@ -26,7 +26,8 @@ MODULES_ALIAS := /lib/modules/$(KERNELREV)/modules.alias
 .PHONY: all tar backup dtbs modules install uninstall clean clean_install show test_dtoverlay
 
 # install: $(INSTALL_KOS) $(INSTALL_DTB) $(INSTALL_INITD)
-install: $(INSTALL_KOS) $(INSTALL_DTB) $(MODULES_ALIAS)
+# install: $(INSTALL_KOS) $(INSTALL_DTB) $(MODULES_ALIAS)
+install: $(INSTALL_KOS) $(INSTALL_DTB)
 
 dtbs:    $(INSTALL_DTB)
 modules: $(LINUXHDR) $(LOCAL_KOS)
@@ -36,6 +37,10 @@ show:
 	@echo '  INSTALLDIR=' $(INSTALLDIR)
 	@echo '  KERNEL=' $(KERNEL)
 	@echo '  MODULES_ALIAS=' $(MODULES_ALIAS)
+
+show_regs:
+  @echo 'FPGA Registers:'
+	@sudo cat /sys/kernel/debug/regmap/1-0010/registers
 
 tar: $(BACKUP)
 
