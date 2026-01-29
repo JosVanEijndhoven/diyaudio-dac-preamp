@@ -108,15 +108,14 @@ static int jedac_bcm_init(struct snd_soc_pcm_runtime *rtd)
 	}
 	if (!power_measured_on) {
 		pr_info("jedac_bcm: init of pcm1792a deferred: Vana power not confirmed!\n");
-		return -EPROBE_DEFER;
+		return 0;  // -EPROBE_DEFER;
 	}
   
 	// the pcm1792 dac chips are only accessible is power is 'on' (as opposed to 'standby')
-  err = jedac_pcm1792_init(priv->dac_l, false);
-	if (!err)
-		err = jedac_pcm1792_init(priv->dac_r, true);
+  jedac_pcm1792_init(priv->dac_l, false);
+	jedac_pcm1792_init(priv->dac_r, true);
 
-	return err;
+	return 0;
 }
 
 // replace the volume control from soc-ops.c
