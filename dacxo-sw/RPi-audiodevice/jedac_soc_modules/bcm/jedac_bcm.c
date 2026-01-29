@@ -325,6 +325,12 @@ static struct snd_soc_card jedac_sound_card = {
 	.resume_pre = jedac_resume_pre,
 };
 
+// Helper to clear the i2c device reference count
+static void jedac_put_i2c_device_action(void *dev)
+{
+    put_device((struct device *)dev);
+}
+
 /* node names of the i2c devices, to match with the jedac-overlay.dts */
 static const char* i2c_node_refs[] = {
 	"jve,jedac_codec",
@@ -385,7 +391,9 @@ static int snd_jedac_probe(struct platform_device *pdev)
 		}
 
     clients[i] = of_find_i2c_device_by_node(nodes[i]);
-		if (!clients[i]) {
+		if (clients[i]) {
+			devm_add_action_or_reset(&pdev->dev, jedac_put_i2c_device_action, &clients[i]->dev);
+		} else {
 		  pr_info("jedac_bcm: For handle %s i2c device NOT found\n", name);
 			if (ret == 0)
 			  ret = -EPROBE_DEFER;  // maybe the i2c subsystem is not ready yet. try again later
