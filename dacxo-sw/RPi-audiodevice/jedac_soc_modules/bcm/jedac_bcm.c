@@ -49,7 +49,6 @@ struct jedac_bcm_priv {
     struct i2c_client *dac_r;
 		struct regmap *fpga_regs;
     uint32_t prev_volume;
-		uint8_t power_transition_busy;
 };
 
 static void jedac_set_attenuation( struct jedac_bcm_priv *priv, unsigned short vol_l, unsigned short vol_r);
@@ -260,19 +259,16 @@ static int jedac_bcm_power_event(struct snd_soc_dapm_widget *w,
 	uint8_t power_is_on = (gpo0_val & GPO0_POWERUP) != 0;
 
   if (SND_SOC_DAPM_EVENT_ON(event)) {
-    if (power_is_on)
-		  return 0;
-
-    dev_info(card->dev, "JEDAC: Powering up DAC rails...\n");
+    dev_info(card->dev, "JEDAC: Powering up DAC rails, (power switch state is %d)\n", power_is_on);
 
     /* A. Tell FPGA to power ON the DACs */
-		err = regmap_update_bits(priv->fpga_regs, REGDAC_GPO0, GPO0_POWERUP, GPO0_POWERUP);
-    priv->power_transition_busy = 1;
+		if (!power_is_on) {
+		  err = regmap_update_bits(priv->fpga_regs, REGDAC_GPO0, GPO0_POWERUP, GPO0_POWERUP);
+		}
 
     /* B. Wait for analog power to come up slowly */
 		uint8_t power_measured_on = 0;
-		for (int i = 0; i < 5 && !power_measured_on; i++) {
-      msleep(200);  // millisecnds
+		for (int i = 0; i < 5; i++) {
 	    unsigned int gpi1_val = 0;
       err = regmap_read(priv->fpga_regs, REGDAC_GPI1, &gpi1_val);
 		  if (!err) {
@@ -280,12 +276,18 @@ static int jedac_bcm_power_event(struct snd_soc_dapm_widget *w,
 		  }
 			pr_info("jedac_bcm: power_event: DAC rails: regmap_err=%d, gpi1=0x%02x, Vana confirmed=%d\n",
 				err, gpi1_val, power_measured_on);
+			if (power_measured_on)
+			  break;
+
+			msleep(200);  // milliseconds: wait and retry..
 		}
 
-    /* C. Now that DACs have power/clock, initialize them via I2C */
+    /* C. Now that DACs have power, initialize them via I2C */
 		if (power_measured_on) {
 		  jedac_pcm1792_init(priv->dac_l, false);
 		  jedac_pcm1792_init(priv->dac_r, true);
+		} else {
+			pr_err("jedac_pcm: power_event: power-up DAC rails failed (err=%d)!", err);
 		}
   }
   return err;
@@ -395,7 +397,6 @@ static int snd_jedac_probe(struct platform_device *pdev)
   priv->dac_r = clients[2];
 	priv->prev_volume = 0;
   priv->fpga_regs = NULL;
-	priv->power_transition_busy = 0;
 
 	// Obtain access to the FPGA i2c registers.
 	// This might need a further 'DEFER': need to wait until the codec 'probe' finishes,
