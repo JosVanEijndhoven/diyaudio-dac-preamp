@@ -107,7 +107,7 @@ static int jedac_bcm_init(struct snd_soc_pcm_runtime *rtd)
 		}
 	}
 	if (!power_measured_on) {
-		pr_info("jedac_bcm: init of pcm1792a deferred: Vana power not confirmed!\n");
+		pr_info("jedac_bcm: init of pcm1792a deferred: Vana power not confirmed! (regmap err=%d, gpi1=0x%02x)\n", err, gpi1_val);
 		return 0;  // -EPROBE_DEFER;
 	}
   
