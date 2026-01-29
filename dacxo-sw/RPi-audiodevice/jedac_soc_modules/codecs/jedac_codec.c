@@ -121,21 +121,17 @@ static int jedac_i2c_set_i2s(struct snd_soc_component *codec, int samplerate)
     return -EINVAL;
 	}
 
-	unsigned int gpo_val = GPO0_POWERUP | GPO0_CLKMASTER | (freq_base << 1) | (freq_mult << 2);
-	int i2cerr_w = regmap_write(map, REGDAC_GPO0, gpo_val);
-	// as test, read-back fpga status byte
-	unsigned int gpi_val = 0;
-	int i2cerr_r = regmap_read(map, REGDAC_GPI0, &gpi_val);
+	unsigned int gpo_val = GPO0_CLKMASTER | (freq_base << 1) | (freq_mult << 2);
+	
+	// set default clock config. Be carefull to not write the 'power' status bit:
+	int i2cerr = regmap_update_bits(map, REGDAC_GPO0, GPO0_CLKMASK, gpo_val);
 
 	// gpiod_set_value(priv->uisync_gpio, 1);  // clear the ui trigger pulse
-	if (i2cerr_w == 0 && i2cerr_r == 0)
-	  pr_info("jedac_codec: i2c_set_i2s: write GPO0=0x%02x, read GPI0=0x%02x: OK!\n",
-		  (int)(gpo_val), (int)(gpi_val));
+	if (i2cerr == 0)
+	  pr_info("jedac_codec: i2c_set_i2s: write GPO0=0x%02x  OK!\n", (int)(gpo_val));
 	else
-	  pr_warn("jedac_codec: i2c_set_i2s: write GPO0=0x%02x, read GPI0=0x%02x: i2c write error=%d, i2c read error=%d\n",
-		  (int)(gpo_val), (int)(gpi_val), i2cerr_w, i2cerr_r);
-
-	return (i2cerr_w == 0) ? i2cerr_r : i2cerr_w;
+	  pr_warn("jedac_codec: i2c_set_i2s: write GPO0=0x%02x, i2c write error=%d\n", (int)(gpo_val), i2cerr);
+	return i2cerr;
 }
 
 static int codec_hw_params(struct snd_pcm_substream *substream,

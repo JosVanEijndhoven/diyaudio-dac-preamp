@@ -43,24 +43,35 @@
 #define DAC_max_attenuation_dB 80
 #define DAC_step_attenuation_dB 1
 
-// Added in FPGA i2c interface, same device adress as the cs8416
+// Registers in FPGA i2c interface, same device adress as the cs8416
+// 'GPO*' registyers are read/write
+// 'GPI*' registers are read-only
 #define REGDAC_GPO0			0x30
 #define REGDAC_GPO1			0x31
 #define REGDAC_GPI0			0x34
 #define REGDAC_GPI1			0x35
 #define REGDAC_MAX			0x35
 
+// *** bitfields in GPO0 ***
 // If GPO0_CLKMASTER set, use i2s dac input, else one of the s/pdif inputs
 #define GPO0_CLKMASTER		0x01
 #define GPO0_BASE48KHZ		0x02
 // CLKRATE: in master mode: 1:44.1 or 48, 2: 88.2 or 96, 3: 176.4 or 192kHz
 //          in slave mode: input channel select 0..3
 #define GPO0_CLKRATE		0x0c
-#define GPO0_POWERUP		0x80
+// gather the above three fields in a mask that concerns clock config:
+#define GPO0_CLKMASK    0x0f
+#define GPO0_POWERUP		0x80   // output to Vana power relay: 1: power switched on, 0: off
 
+// *** bifields in GPO1 ***
 #define GPO1_ATT20DB		0x01
-#define GPI1_ANAPWR			0x01
 
+// *** bifields in GPI0 ***
+
+// *** bifields in GPI1 ***
+#define GPI1_ANAPWR			0x01   // measured Vana: 1 is 'on' (with 0.1s delay), 0 is 'off'
+
+// GPIO pin number on RPi Zero to interact with EspHome UI controller
 #define GPIO_UI_TRIG    27
 		  
 #endif /* _JEDAC_H */

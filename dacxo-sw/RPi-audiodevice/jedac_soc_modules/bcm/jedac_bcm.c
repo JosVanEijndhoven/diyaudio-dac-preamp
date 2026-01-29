@@ -47,7 +47,9 @@ struct jedac_bcm_priv {
 		struct i2c_client *fpga;
     struct i2c_client *dac_l;
     struct i2c_client *dac_r;
+		struct regmap *fpga_regs;
     uint32_t prev_volume;
+		uint8_t power_transition_busy;
 };
 
 static void jedac_set_attenuation( struct jedac_bcm_priv *priv, unsigned short vol_l, unsigned short vol_r);
@@ -65,7 +67,7 @@ static int i2c_write_retry( struct i2c_client *client, uint8_t reg, uint8_t valu
 };
 
 /* sound card init */
-static void jedac_pcm1792_init(struct i2c_client *dac, bool is_right_chan)
+static int jedac_pcm1792_init(struct i2c_client *dac, bool is_right_chan)
 {
 	struct pcm_reg_init {
 		uint8_t reg_nr;
@@ -78,9 +80,11 @@ static void jedac_pcm1792_init(struct i2c_client *dac, bool is_right_chan)
 	};
   pr_info("jedac_bcm: initialize pcm1792a(%s) i2c registers\n", (is_right_chan ? "right" : "left"));
 
-	for (int i = 0; i < ARRAY_SIZE(inits); i++) {
-		i2c_write_retry(dac, inits[i].reg_nr, inits[i].value);
+	int err = 0;
+	for (int i = 0; i < ARRAY_SIZE(inits) && !err; i++) {
+		err = i2c_write_retry(dac, inits[i].reg_nr, inits[i].value);
 	}
+	return err;
 }
 
 static int jedac_bcm_init(struct snd_soc_pcm_runtime *rtd)
@@ -88,17 +92,31 @@ static int jedac_bcm_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_soc_card *card = rtd->card;
   struct jedac_bcm_priv *priv = snd_soc_card_get_drvdata(card);
 
-	pr_info("jedac_bcm: jedac_bcm_init(card=\"%s\", priv=%s)\n", card->name, ((priv == NULL) ? "NULL!" : "OK"));
+	pr_info("jedac_bcm: init(card=\"%s\", priv=%s)\n", card->name, ((priv == NULL) ? "NULL!" : "OK"));
 	if (!priv)
 	  return -EINVAL;
 
   // Note that the FPGA has already done its own init during its 'probe()'
-	// reg_chan = GPO0_POWERUP | GPO0_CLKMASTER;
-	// i2cerr = snd_soc_component_write(codec, REGDAC_GPO0, reg_chan);
+	uint8_t power_measured_on = 0;
+	unsigned int gpi1_val = 0;
+	int err = 0;
+	if (priv->fpga_regs) {
+    err = regmap_read(priv->fpga_regs, REGDAC_GPI1, &gpi1_val);
+		if (!err) {
+			power_measured_on = (gpi1_val & GPI1_ANAPWR) != 0;
+		}
+	}
+	if (!power_measured_on) {
+		pr_info("jedac_bcm: init of pcm1792a deferred: Vana power not confirmed!\n");
+		return -EPROBE_DEFER;
+	}
+  
+	// the pcm1792 dac chips are only accessible is power is 'on' (as opposed to 'standby')
+  err = jedac_pcm1792_init(priv->dac_l, false);
+	if (!err)
+		err = jedac_pcm1792_init(priv->dac_r, true);
 
-	jedac_pcm1792_init(priv->dac_l, false);
-	jedac_pcm1792_init(priv->dac_r, true);
-	return 0;
+	return err;
 }
 
 // replace the volume control from soc-ops.c
@@ -173,11 +191,7 @@ static const struct snd_kcontrol_new jedac_controls[] = {
 static int snd_rpi_jedac_startup(struct snd_pcm_substream *substream) {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_component *component = snd_soc_rtd_to_codec(rtd, 0)->component;
-	// struct snd_soc_codec *codec = rtd->codec;
-	// const char* name = codec ? codec->component.name : "NULL";
-	// snd_soc_write(codec, REGDAC_GPO0, GPO0_POWERUP | GPO0_CLKMASTER);
-	// snd_soc_component_write(component, REGDAC_GPO0, GPO0_POWERUP | GPO0_CLKMASTER);
-	pr_info("jedac_bcm:snd_rpi_jedac_startup(): codec=%s powerup!\n", component->name);
+	pr_info("jedac_bcm:snd_rpi_jedac_startup(): codec=%s Dummy!\n", component->name);
 	return 0;
 }
 
@@ -185,26 +199,20 @@ static int snd_rpi_jedac_startup(struct snd_pcm_substream *substream) {
 static void snd_rpi_jedac_shutdown(struct snd_pcm_substream *substream) {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_component *component = snd_soc_rtd_to_codec(rtd, 0)->component;
-	// struct snd_soc_codec *codec = rtd->codec;
-	// const char* name = codec ? codec->component.name : "NULL";
-
-	// hmm.. powerdown not a very good idea here?
-	// this occurs within a minute of a song end.
-	// snd_soc_write(codec, REGDAC_GPO0, 0x00); // power-down DAC into standby
-	pr_info("jedac_bcm:snd_rpi_jedac_shutdown() codec=%s dummy\n", component->name);
+	pr_info("jedac_bcm:snd_rpi_jedac_shutdown() codec=%s Dummy\n", component->name);
 }
 
 /* card suspend */
 static int jedac_suspend_post(struct snd_soc_card *card)
 {
-	pr_info("jedac_bcm: jedac_suspend_post() dummy\n");
+	pr_info("jedac_bcm: jedac_suspend_post() Dummy\n");
 	return 0;
 }
 
 /* card resume */
 static int jedac_resume_pre(struct snd_soc_card *card)
 {
-	pr_info("jedac_bcm: jedac_resume_pre() dummy\n");
+	pr_info("jedac_bcm: jedac_resume_pre() Dummy\n");
 	return 0;
 }
 
@@ -232,11 +240,56 @@ static struct snd_soc_dai_link jedac_dai_link[] = {
 },
 };
 
+static int jedac_bcm_power_event(struct snd_soc_dapm_widget *w,
+                                 struct snd_kcontrol *kcontrol, int event)
+{
+  struct snd_soc_card *card = w->dapm->card;
+  struct jedac_bcm_priv *priv = snd_soc_card_get_drvdata(card);
+
+	if (!priv || !priv->fpga_regs) {
+		pr_err("jedac_bcm power_event: No access to fpga regmap error!\n");
+		return -EINVAL;
+	}
+
+	// Check current power relay status: Maybe got set manually outside scope of the DAPM framework.
+	unsigned int gpo0_val = 0;
+  int err = regmap_read(priv->fpga_regs, REGDAC_GPI0, &gpo0_val);
+	if (err) {
+		pr_err("jedac_bcm power_event: i2c access error %d!\n", err);
+		return err;
+	}
+	uint8_t power_is_on = (gpo0_val & GPO0_POWERUP) != 0;
+
+  if (SND_SOC_DAPM_EVENT_ON(event)) {
+    if (power_is_on)
+		  return 0;
+
+    dev_info(card->dev, "JEDAC: Powering up DAC rails...\n");
+
+    /* A. Tell FPGA to power ON the DACs */
+		err = regmap_update_bits(priv->fpga_regs, REGDAC_GPO0, GPO0_POWERUP, GPO0_POWERUP);
+    priv->power_transition_busy = 1;
+
+    /* B. Wait for analog power to come up slowly */
+    msleep(200);
+
+    /* C. Now that DACs have power/clock, initialize them via I2C */
+		jedac_pcm1792_init(priv->dac_l, false);
+		jedac_pcm1792_init(priv->dac_r, true);
+  }
+  return 0;
+}
+
+/* 2. Define the Widget and Route */
 static const struct snd_soc_dapm_widget jedac_bcm_widgets[] = {
-    SND_SOC_DAPM_HP("Main Output", NULL), // A "Sink" for the audio
+    SND_SOC_DAPM_SUPPLY("DAC_Rails", SND_SOC_NOPM, 0, 0, jedac_bcm_power_event,
+                        SND_SOC_DAPM_POST_PMU),
+		SND_SOC_DAPM_HP("Main Output", NULL), // A "Sink" for the audio
 };
 
 static const struct snd_soc_dapm_route jedac_bcm_routes[] = {
+    /* Connect the Codec's output to our Power Supply widget */
+    { "Playback", NULL, "DAC_Rails" }, 
     /* "Main Output" is fed by the FPGA's playback stream */
     { "Main Output", NULL, "Playback" }, 
 };
@@ -265,17 +318,6 @@ static const char* i2c_node_refs[] = {
 	"jve,dac_l",
 	"jve,dac_r"
 };
-
-static struct snd_soc_component* get_rtd_component(void) {
-	// assume my jedac device is used with only one instantiation!
-	struct snd_soc_pcm_runtime *rtd = NULL;
-	list_for_each_entry(rtd, &jedac_sound_card.rtd_list, list) {
-		struct snd_soc_dai* dai = NULL;
-		if (rtd && (dai = snd_soc_rtd_to_codec(rtd, 0)))
-			return dai->component;
-	}
-	return NULL;
-}
 
 /* sound card detect */
 // see for instance examples like:
@@ -309,24 +351,23 @@ static int snd_jedac_probe(struct platform_device *pdev)
 	priv->uisync_gpio = devm_gpiod_get(&pdev->dev, "uisync", GPIOD_OUT_HIGH_OPEN_DRAIN);
 	if (IS_ERR(priv->uisync_gpio)) {
 		pr_err("jedac_bcm: failed to access the 'uisync' gpio pin!\n");
-		return -EINVAL;
+		return -ENOENT;
 	} else {
 		pr_info("jedac_bcm: successfully acquired 'uisync' gpio pin!\n");
 	}
 
 	struct snd_soc_dai_link *dai = &jedac_dai_link[0];
 	/* find my three i2c components on the dac board: an FPGA and two PCM1792 */
-  int found_nodes = 0;
 	struct device_node *nodes[3];
 	struct i2c_client *clients[3];
 	for (int i = 0; i < 3; i++) {
 		const char *name = i2c_node_refs[i];
 		nodes[i] = of_parse_phandle(np, name, 0);
-			
+
 		if (!nodes[i]) {
 			dev_err(&pdev->dev, "jedac_bcm: handle %s not found!\n", name);
 		  clients[i] = NULL;
-			ret = -EINVAL;
+			ret = -ENOENT;
 			continue;
 		}
 
@@ -337,19 +378,30 @@ static int snd_jedac_probe(struct platform_device *pdev)
 			  ret = -EPROBE_DEFER;  // maybe the i2c subsystem is not ready yet. try again later
 			continue;
 		}
-	  found_nodes++;
 	}
   priv->fpga  = clients[0];
   priv->dac_l = clients[1];
   priv->dac_r = clients[2];
 	priv->prev_volume = 0;
+  priv->fpga_regs = NULL;
+	priv->power_transition_busy = 0;
+
+	// Obtain access to the FPGA i2c registers.
+	// This might need a further 'DEFER': need to wait until the codec 'probe' finishes,
+	// so it has allocated its regmap:
+
+	if (priv->fpga) {
+	  priv->fpga_regs = dev_get_regmap(&priv->fpga->dev, NULL);
+		if (!priv->fpga_regs && (ret == 0))
+		  ret = -EPROBE_DEFER;
+	}
 
 	struct device_node *i2s_node = of_parse_phandle(np, "i2s-controller", 0);
 	if (!i2s_node) {
 		dev_err(&pdev->dev, "jedac_bcm: i2s_node not found!\n");
+		ret = -ENOENT;
 	} else {
 		pr_info("jedac_bcm: Found i2s handle for card\n");
-		found_nodes++;
 	}
 
 	// We have one i2s 'digital audio interface' towards the board FPGA
@@ -361,7 +413,7 @@ static int snd_jedac_probe(struct platform_device *pdev)
 	dai->codecs[0].name = NULL;
 	dai->codecs[0].of_node = nodes[0];  // our fpga acts as dai codec
 
-	if (found_nodes == 4) {
+	if (ret == 0) {
 		// Good, all device tree nodes found!
 	  ret = devm_snd_soc_register_card(&pdev->dev, &jedac_sound_card);
 	}
@@ -391,16 +443,7 @@ static int snd_jedac_probe(struct platform_device *pdev)
 /* sound card disconnect */
 static void snd_jedac_remove(struct platform_device *pdev)
 {
-	pr_info("jedac_bcm:snd_rpi_jedac_remove(): power-down\n");
-	struct snd_soc_component* component = get_rtd_component();
-	if (component) {
-    snd_soc_component_write(component, REGDAC_GPO0, 0); // power down
-	}
-	struct snd_soc_card *card = platform_get_drvdata(pdev);
-	if (card) {
-		struct jedac_bcm_priv *priv = snd_soc_card_get_drvdata(card);
-		gpiod_set_value(priv->uisync_gpio, 1);  // just for safety: deactivate
-	}
+	pr_info("jedac_bcm:snd_rpi_jedac_remove(): power-down DUMMY\n");
 }
 
 static const struct of_device_id jedac_of_match[] = {
@@ -419,71 +462,7 @@ static struct platform_driver snd_rpi_jedac_driver = {
 	.probe          = snd_jedac_probe,
 	.remove         = snd_jedac_remove,
 };
-
 module_platform_driver(snd_rpi_jedac_driver);
-
-
-/*****************************************************************************
-* Above code contains the ASoC API structs and functions
-* Below code adds the more specific device functionality
-******************************************************************************/
-
-#if 0
-// power-up the board from standby, and await the presence of the
-// powersupply: we need that to access the pcm1792 devices
-// return 0 on success, !=0 on timeout or i2c or codec failure
-static int jedac_await_powerup(void)
-{
-	struct snd_soc_component *comp = get_rtd_component();
-	const unsigned char mode_reg = GPO0_POWERUP | GPO0_CLKMASTER;
-	const signed long delay = 50 * HZ / 1000; // 50 milliseconds per iteration
-	const int max_cnt = 60; // max allowed iterations until timeout error, expected is 6
-	int cnt, i2cerr;
-	int got_pwr = 0;
-	// the codec (fpga chip) is also powered on standby, and should always work
-	if (!comp)
-		return -1;
-	
-	i2cerr = snd_soc_component_write(comp, REGDAC_GPO0, mode_reg);
-
-	for (cnt = 0; !i2cerr && !got_pwr && cnt < max_cnt; cnt++)
-	{
-		int reg_val = snd_soc_component_read(comp, REGDAC_GPI1);
-		if (reg_val < 0) // i2c read error
-			i2cerr = 1;
-		else if (reg_val & GPI1_ANAPWR)
-			got_pwr = 1; // Yes, success :-)
-		else
-		{
-			// timer wait for 50 millisecnds
-			set_current_state(TASK_INTERRUPTIBLE);
-			schedule_timeout(delay);
-		}
-	}
-	
-	// Maybe, we have just hit the moment of power-up.
-	// Then we need to allow some extra time for:
-	// - the xtal oscillator to ramp-up (2 msec startup time) and
-	// - the pcm1792 to do its internal reset sequence (1024 clocks is 0.2msec)
-	if (got_pwr && cnt > 1)
-	{
-		signed long short_delay = delay/2;
-		if (short_delay < 1)
-			short_delay = 1;
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(short_delay);
-	}
-	
-	if (i2cerr)
-		pr_info("jedac_bcm: jedac_await_powerup: i2c error!\n");
-	else if (!got_pwr)
-		pr_info("jedac_bcm: jedac_await_powerup: powerup timeout error!\n");
-	else
-		pr_info("jedac_bcm: jedac_await_powerup: power OK after %d iterations\n", cnt);
-
-	return !got_pwr;
-}
-#endif
 
 static void jedac_set_attenuation_pcm1792(struct i2c_client *dac, uint16_t att)
 {
