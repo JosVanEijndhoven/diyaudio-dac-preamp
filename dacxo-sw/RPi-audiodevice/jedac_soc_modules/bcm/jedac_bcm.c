@@ -435,6 +435,10 @@ static int snd_jedac_probe(struct platform_device *pdev)
 	priv->prev_volume = 0;
   priv->fpga_regs = NULL;
 
+	// set easier to understand device names
+	dev_set_name(&priv->dac_l->dev, "DAC_L");
+  dev_set_name(&priv->dac_r->dev, "DAC_R");
+
 	// Obtain access to the FPGA i2c registers.
 	// This might need a further 'DEFER': need to wait until the codec 'probe' finishes,
 	// so it has allocated its regmap:
@@ -539,8 +543,10 @@ static void jedac_set_attenuation_pcm1792(struct i2c_client *dac, uint16_t att)
 	if (!err)
 	  err = regmap_write(regs, PCM1792A_DAC_VOL_RIGHT, chip_att);
 
-  if (err)
-    pr_warn("jedac_bcm: set_attenuation_pcn1792(): \"%s\" i2c write: err=%d\n", dac->name, err);
+  if (err) {
+    pr_warn("jedac_bcm: set_attenuation_pcn1792(): \"%s\" i2c write: err=%d\n", dev_name(&dac->dev, err);
+		dev_warn(dac->dev, "jedac_bcm: set_attenuation_pcn1792(): write err=%d\n", err);
+	}
 }
 
 static void jedac_set_attenuation( struct jedac_bcm_priv *priv, uint16_t att_l, uint16_t att_r)
