@@ -100,12 +100,12 @@ static int jedac_pcm1792_init(struct i2c_client *dac, bool is_right_chan)
 		{ PCM1792A_MODE_CONTROL, 0x62},  // reg 19: slow unmute, filter slow rolloff
 		{ PCM1792A_STEREO_CONTROL, (is_right_chan ? 0x0c : 0x08)} // reg 20: set mono mode, choose channel
 	};
-  pr_info("jedac_bcm: initialize pcm1792a(%s) i2c registers\n", dac->name);
+  pr_info("jedac_bcm: initialize pcm1792a(%s) i2c registers\n", dev_name(&dac->dev));
 
 	struct regmap *regs = dev_get_regmap(&dac->dev, NULL);
 	int err = IS_ERR(regs);
 	if (err) {
-    pr_err("jedac_bcm: initialize pcm1792a(%s) i2c registers failed: no regmap?: err=%d\n", dac->name, err);
+    pr_err("jedac_bcm: initialize pcm1792a(%s) i2c registers failed: no regmap?: err=%d\n", dev_name(&dac->dev), err);
 	}
 
 	for (int i = 0; i < ARRAY_SIZE(inits) && !err; i++) {
@@ -116,6 +116,9 @@ static int jedac_pcm1792_init(struct i2c_client *dac, bool is_right_chan)
 		unsigned int reg = inits[i].reg_nr;
 		int err_rd = regmap_read(regs, reg, &val);
 		pr_info("jedac_bcm: verify init pcm1792a: reg=%d, val=%d=0x%02x, err=%d\n", reg, val, val, err_rd);
+		if (err_rd) {
+			dev_err(&dac->dev, "jedac_bcm: verify init pcm1792a: reg=%d, val=%d=0x%02x, err=%d\n", reg, val, val, err_rd);
+		}
 	}
 	return err;
 }
