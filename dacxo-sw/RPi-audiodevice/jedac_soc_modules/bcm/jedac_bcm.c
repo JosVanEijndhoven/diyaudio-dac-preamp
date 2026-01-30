@@ -89,7 +89,7 @@ static const struct regmap_config pcm1792_regmap_config = {
 static void jedac_set_attenuation( struct jedac_bcm_priv *priv, unsigned short vol_l, unsigned short vol_r);
 
 /* sound card init */
-static int jedac_pcm1792_init(struct i2c_client *dac, bool is_right_chan)
+static int jedac_pcm1792_init(struct i2c_client *dac, bool is_powered, bool is_right_chan)
 {
 	struct pcm_reg_init {
 		uint8_t reg_nr;
@@ -100,18 +100,25 @@ static int jedac_pcm1792_init(struct i2c_client *dac, bool is_right_chan)
 		{ PCM1792A_MODE_CONTROL, 0x62},  // reg 19: slow unmute, filter slow rolloff
 		{ PCM1792A_STEREO_CONTROL, (is_right_chan ? 0x0c : 0x08)} // reg 20: set mono mode, choose channel
 	};
-  pr_info("jedac_bcm: initialize pcm1792a(%s %s) i2c registers\n", dac->name, (is_right_chan ? "Right" : "Left"));
+  pr_info("jedac_bcm: initialize pcm1792a(%s %s) i2c registers, power=%d\n",
+		dac->name, (is_right_chan ? "Right" : "Left"), is_powered);
 
 	struct regmap *regs = dev_get_regmap(&dac->dev, NULL);
 	int err = IS_ERR(regs);
 	if (err) {
     pr_err("jedac_bcm: initialize pcm1792a(%s) i2c registers failed: no regmap?: err=%d\n", (is_right_chan ? "Right" : "Left"), err);
+		return err;
 	}
+
+	if (!is_powered) {
+    regcache_cache_only(regs, true);
+  }
 
 	for (int i = 0; i < ARRAY_SIZE(inits) && !err; i++) {
 		err = regmap_write(regs, inits[i].reg_nr, inits[i].value);
 		pr_info("jedac_bcm: init pcm1792a:  write reg=%d, val=0x%02x, err=%d\n", inits[i].reg_nr, inits[i].value, err);
 	}
+
 	for (int i = 0; i < ARRAY_SIZE(inits); i++) {
 		unsigned int val;
 		unsigned int reg = inits[i].reg_nr;
@@ -121,6 +128,11 @@ static int jedac_pcm1792_init(struct i2c_client *dac, bool is_right_chan)
 			dev_err(&dac->dev, "jedac_bcm: verify init pcm1792a: reg=%d, val=%d=0x%02x, err=%d\n", reg, val, val, err_rd);
 		}
 	}
+
+	if (!is_powered) {
+    regcache_cache_only(regs, false);
+  }
+
 	return err;
 }
 
@@ -134,11 +146,17 @@ static int jedac_bcm_init(struct snd_soc_pcm_runtime *rtd)
 	  return -EINVAL;
 
   // Note that the FPGA has already done its own init during its 'probe()'
-  
+  uint8_t power_measured_on = 0;
+	unsigned int gpi1_val = 0;
+  int err = regmap_read(priv->fpga_regs, REGDAC_GPI1, &gpi1_val);
+	if (!err) {
+		power_measured_on = (gpi1_val & GPI1_ANAPWR) != 0;
+	}
+
 	// the pcm1792 dac chip registers get initial assignment.
 	// When they are not yet powered-up, this initialization remains in the regmap cache,
-  jedac_pcm1792_init(priv->dac_l, false);
-	jedac_pcm1792_init(priv->dac_r, true);
+  jedac_pcm1792_init(priv->dac_l, power_measured_on, false);
+	jedac_pcm1792_init(priv->dac_r, power_measured_on, true);
 
 	return 0;
 }
@@ -314,7 +332,15 @@ static int jedac_bcm_power_event(struct snd_soc_dapm_widget *w,
       // Mark the register cache as "Dirty", then "Sync" to write cached values
 			struct regmap *regs = dev_get_regmap(&priv->dac_l->dev, NULL);
       regcache_mark_dirty(regs);
-      regcache_sync(regs);
+      int err_l = regcache_sync(regs);
+			unsigned int val;
+			int err_rd = regmap_read(regs, 18, &val);
+			pr_info("jedac_bcm: flush&sync err=%d, read back 18: val=0x%02x, err=%d\n", err_l, val, err_rd);
+			int phys_val = i2c_smbus_read_byte_data(priv->dac_l, 18); // Read register 18 (0x12)
+			if (phys_val < 0)
+        pr_info("jedac_bcm: bypass read of reg 18: err=%d\n", phys_val);
+			else
+        pr_info("jedac_bcm: bypass read of reg 18: val=0x%02x\n", phys_val);
 
 			regs = dev_get_regmap(&priv->dac_r->dev, NULL);
       regcache_mark_dirty(regs);
