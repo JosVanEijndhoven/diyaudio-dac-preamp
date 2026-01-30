@@ -100,16 +100,17 @@ static int jedac_pcm1792_init(struct i2c_client *dac, bool is_right_chan)
 		{ PCM1792A_MODE_CONTROL, 0x62},  // reg 19: slow unmute, filter slow rolloff
 		{ PCM1792A_STEREO_CONTROL, (is_right_chan ? 0x0c : 0x08)} // reg 20: set mono mode, choose channel
 	};
-  pr_info("jedac_bcm: initialize pcm1792a(%s) i2c registers\n", dev_name(&dac->dev));
+  pr_info("jedac_bcm: initialize pcm1792a(%s %s) i2c registers\n", dac->name, (is_right_chan ? "Right" : "Left"));
 
 	struct regmap *regs = dev_get_regmap(&dac->dev, NULL);
 	int err = IS_ERR(regs);
 	if (err) {
-    pr_err("jedac_bcm: initialize pcm1792a(%s) i2c registers failed: no regmap?: err=%d\n", dev_name(&dac->dev), err);
+    pr_err("jedac_bcm: initialize pcm1792a(%s) i2c registers failed: no regmap?: err=%d\n", (is_right_chan ? "Right" : "Left"), err);
 	}
 
 	for (int i = 0; i < ARRAY_SIZE(inits) && !err; i++) {
 		err = regmap_write(regs, inits[i].reg_nr, inits[i].value);
+		pr_info("jedac_bcm: init pcm1792a:  write reg=%d, val=0x%02x, err=%d\n", inits[i].reg_nr, inits[i].value, err);
 	}
 	for (int i = 0; i < ARRAY_SIZE(inits); i++) {
 		unsigned int val;
@@ -437,10 +438,6 @@ static int snd_jedac_probe(struct platform_device *pdev)
   priv->dac_r = clients[2];
 	priv->prev_volume = 0;
   priv->fpga_regs = NULL;
-
-	// set easier to understand device names
-	dev_set_name(&priv->dac_l->dev, "DAC_L");
-  dev_set_name(&priv->dac_r->dev, "DAC_R");
 
 	// Obtain access to the FPGA i2c registers.
 	// This might need a further 'DEFER': need to wait until the codec 'probe' finishes,
