@@ -120,21 +120,9 @@ static int jedac_bcm_init(struct snd_soc_pcm_runtime *rtd)
 	  return -EINVAL;
 
   // Note that the FPGA has already done its own init during its 'probe()'
-	uint8_t power_measured_on = 0;
-	unsigned int gpi1_val = 0;
-	int err = 0;
-	if (priv->fpga_regs) {
-    err = regmap_read(priv->fpga_regs, REGDAC_GPI1, &gpi1_val);
-		if (!err) {
-			power_measured_on = (gpi1_val & GPI1_ANAPWR) != 0;
-		}
-	}
-	if (!power_measured_on) {
-		pr_info("jedac_bcm: init of pcm1792a deferred: Vana power not confirmed! (regmap err=%d, gpi1=0x%02x)\n", err, gpi1_val);
-		return 0;  // -EPROBE_DEFER;
-	}
   
-	// the pcm1792 dac chips are only accessible is power is 'on' (as opposed to 'standby')
+	// the pcm1792 dac chip registers get initial assignment.
+	// When they are not yet powered-up, this initialization remains in the regmap cache,
   jedac_pcm1792_init(priv->dac_l, false);
 	jedac_pcm1792_init(priv->dac_r, true);
 
@@ -308,6 +296,7 @@ static int jedac_bcm_power_event(struct snd_soc_dapm_widget *w,
 
     /* C. Now that DACs have power, initialize them via I2C */
 		if (power_measured_on) {
+			pr_info("jedac_bcm: flush regmap cache to pcm1792 dacs");
       // Mark the register cache as "Dirty", then "Sync" to write cached values
 			struct regmap *regs = dev_get_regmap(&priv->dac_l->dev, NULL);
       regcache_mark_dirty(regs);
