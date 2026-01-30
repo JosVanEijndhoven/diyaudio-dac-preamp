@@ -544,8 +544,8 @@ static void jedac_set_attenuation_pcm1792(struct i2c_client *dac, uint16_t att)
 	  err = regmap_write(regs, PCM1792A_DAC_VOL_RIGHT, chip_att);
 
   if (err) {
-    pr_warn("jedac_bcm: set_attenuation_pcn1792(): \"%s\" i2c write: err=%d\n", dev_name(&dac->dev, err);
-		dev_warn(dac->dev, "jedac_bcm: set_attenuation_pcn1792(): write err=%d\n", err);
+    pr_warn("jedac_bcm: set_attenuation_pcn1792(): \"%s\" i2c write: err=%d\n", dev_name(&dac->dev), err);
+		dev_warn(&dac->dev, "jedac_bcm: set_attenuation_pcn1792(): write err=%d\n", err);
 	}
 }
 
