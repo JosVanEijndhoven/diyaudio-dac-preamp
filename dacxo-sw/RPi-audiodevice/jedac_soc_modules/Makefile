@@ -41,6 +41,10 @@ show:
 show_regs:
 	@echo 'FPGA Registers:'
 	@sudo cat /sys/kernel/debug/regmap/1-0010/registers
+	@echo 'Left pcm1792 Registers:'
+	@sudo cat /sys/kernel/debug/regmap/1-004d/registers
+	@echo 'Right pcm1792 Registers:'
+	@sudo cat /sys/kernel/debug/regmap/1-004c/registers
 
 tar: $(BACKUP)
 

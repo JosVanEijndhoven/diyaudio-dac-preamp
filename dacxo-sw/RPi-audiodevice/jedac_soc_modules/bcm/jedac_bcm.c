@@ -31,6 +31,7 @@
 #include <linux/printk.h>
 #include <linux/i2c.h>
 #include <linux/gpio/consumer.h>
+#include <linux/regmap.h>
 
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -51,19 +52,41 @@ struct jedac_bcm_priv {
     uint32_t prev_volume;
 };
 
-static void jedac_set_attenuation( struct jedac_bcm_priv *priv, unsigned short vol_l, unsigned short vol_r);
-
-static int i2c_write_retry( struct i2c_client *client, uint8_t reg, uint8_t value) {
-  int err = i2c_smbus_write_byte_data( client, reg, value);
-	if ((err == -EREMOTEIO) || (err == -EAGAIN)) {
-		err = i2c_smbus_write_byte_data( client, reg, value);  // retry once more
-	}
-	if (err != 0) {
-		pr_warn("jedac i2c write(%s (0x%02x), reg=%d, %d) failed with %d!\n",
-			client->name, client->addr, (int)(reg), (int)(value), err);
-	}
-	return err;
+static const struct reg_default pcm1792a_reg_defaults[] = {
+	{ PCM1792A_DAC_VOL_LEFT,   PCM1792A_DAC_VOL_LEFT_DEFAULT},
+  { PCM1792A_DAC_VOL_RIGHT,  PCM1792A_DAC_VOL_RIGHT_DEFAULT },
+  { PCM1792A_FMT_CONTROL,    PCM1792A_FMT_CONTROL_DEFAULT },
+  { PCM1792A_MODE_CONTROL,   PCM1792A_MODE_CONTROL_DEFAULT },
+  { PCM1792A_STEREO_CONTROL, PCM1792A_STEREO_CONTROL_DEFAULT },
 };
+
+static bool pcm1792a_reg_writeable(struct device *dev, unsigned int reg) {
+	return (reg == PCM1792A_DAC_VOL_LEFT) || (reg == PCM1792A_DAC_VOL_RIGHT) ||
+         (reg == PCM1792A_FMT_CONTROL)  || (reg == PCM1792A_MODE_CONTROL) ||
+				 (reg == PCM1792A_STEREO_CONTROL);
+}
+
+static bool pcm1792a_reg_readable(struct device *dev, unsigned int reg) {
+	return pcm1792a_reg_writeable(dev, reg);
+}
+
+static bool pcm1792a_reg_volatile(struct device *dev, unsigned int reg) {
+	return false;
+}
+
+static const struct regmap_config pcm1792_regmap_config = {
+  .reg_bits         = 8,
+  .val_bits          = 8,
+  .max_register     = PCM1792A_REG_MAX,
+	.readable_reg     = pcm1792a_reg_readable,
+	.writeable_reg    = pcm1792a_reg_writeable,
+	.volatile_reg     = pcm1792a_reg_volatile,
+	.reg_defaults     = pcm1792a_reg_defaults,
+	.num_reg_defaults = ARRAY_SIZE(pcm1792a_reg_defaults),
+  .cache_type       = REGCACHE_RBTREE, // This remembers values while DAC is not powered
+};
+
+static void jedac_set_attenuation( struct jedac_bcm_priv *priv, unsigned short vol_l, unsigned short vol_r);
 
 /* sound card init */
 static int jedac_pcm1792_init(struct i2c_client *dac, bool is_right_chan)
@@ -79,9 +102,10 @@ static int jedac_pcm1792_init(struct i2c_client *dac, bool is_right_chan)
 	};
   pr_info("jedac_bcm: initialize pcm1792a(%s) i2c registers\n", (is_right_chan ? "right" : "left"));
 
-	int err = 0;
+	struct regmap *regs = dev_get_regmap(&dac->dev, NULL);
+	int err = IS_ERR(regs);
 	for (int i = 0; i < ARRAY_SIZE(inits) && !err; i++) {
-		err = i2c_write_retry(dac, inits[i].reg_nr, inits[i].value);
+		err = regmap_write(regs, inits[i].reg_nr, inits[i].value);
 	}
 	return err;
 }
@@ -284,8 +308,14 @@ static int jedac_bcm_power_event(struct snd_soc_dapm_widget *w,
 
     /* C. Now that DACs have power, initialize them via I2C */
 		if (power_measured_on) {
-		  jedac_pcm1792_init(priv->dac_l, false);
-		  jedac_pcm1792_init(priv->dac_r, true);
+      // Mark the register cache as "Dirty", then "Sync" to write cached values
+			struct regmap *regs = dev_get_regmap(&priv->dac_l->dev, NULL);
+      regcache_mark_dirty(regs);
+      regcache_sync(regs);
+
+			regs = dev_get_regmap(&priv->dac_r->dev, NULL);
+      regcache_mark_dirty(regs);
+      regcache_sync(regs);
 		} else {
 			pr_err("jedac_pcm: power_event: power-up DAC rails failed (err=%d)!", err);
 		}
@@ -409,13 +439,30 @@ static int snd_jedac_probe(struct platform_device *pdev)
 	// Obtain access to the FPGA i2c registers.
 	// This might need a further 'DEFER': need to wait until the codec 'probe' finishes,
 	// so it has allocated its regmap:
-
 	if (priv->fpga) {
 	  priv->fpga_regs = dev_get_regmap(&priv->fpga->dev, NULL);
 		if (!priv->fpga_regs && (ret == 0))
 		  ret = -EPROBE_DEFER;
 	}
 
+	// The two pcm1792 regmaps are created here:
+	if (priv->dac_l) {
+    struct regmap *regs = devm_regmap_init_i2c(priv->dac_l, &pcm1792_regmap_config);
+	  if (IS_ERR(regs)) {
+		  dev_err(&priv->dac_l->dev, "jedac_codec: Failed to register i2c regmap for \"%s\": err=%d\n", priv->dac_l->name, ret);
+		  return PTR_ERR(regs);
+	  }
+  }
+
+	if (priv->dac_r) {
+    struct regmap *regs = devm_regmap_init_i2c(priv->dac_r, &pcm1792_regmap_config);
+	  if (IS_ERR(regs)) {
+		  dev_err(&priv->dac_r->dev, "jedac_codec: Failed to register i2c regmap for \"%s\": err=%d\n", priv->dac_r->name, ret);
+		  return PTR_ERR(regs);
+	  }
+  }
+
+	// Find the i2s (dai) interface from the card to the codec:
 	struct device_node *i2s_node = of_parse_phandle(np, "i2s-controller", 0);
 	if (!i2s_node) {
 		dev_err(&pdev->dev, "jedac_bcm: i2s_node not found!\n");
@@ -486,14 +533,15 @@ module_platform_driver(snd_rpi_jedac_driver);
 
 static void jedac_set_attenuation_pcm1792(struct i2c_client *dac, uint16_t att)
 {
-	uint8_t chip_att = (att == 0) ? 0 : (255 - ((80 - att) * 2));
+	unsigned int chip_att = (att == 0) ? 0 : (255 - ((80 - att) * 2));
 	// write att value to both left and right on-chip channel, as we use mono mode
-	int err = i2c_write_retry(dac, PCM1792A_DAC_VOL_LEFT, chip_att);
+	struct regmap *regs = dev_get_regmap(&dac->dev, NULL);
+	int err = regmap_write(regs, PCM1792A_DAC_VOL_LEFT, chip_att);
 	if (!err)
-	  err = i2c_write_retry(dac, PCM1792A_DAC_VOL_RIGHT, chip_att);
+	  err = regmap_write(regs, PCM1792A_DAC_VOL_RIGHT, chip_att);
 
   if (err)
-    pr_warn("jedac_bcm: set_attenuation_pcn1792(): error=%d in i2c dac write!\n", err);
+    pr_warn("jedac_bcm: set_attenuation_pcn1792(): \"%s\" i2c write: err=%d\n", dac->name, err);
 }
 
 static void jedac_set_attenuation( struct jedac_bcm_priv *priv, uint16_t att_l, uint16_t att_r)
@@ -511,9 +559,9 @@ static void jedac_set_attenuation( struct jedac_bcm_priv *priv, uint16_t att_l, 
   }
 	
 	// write the board 20dB_attenuation to the fpga:
-	int err = i2c_write_retry(priv->fpga, REGDAC_GPO1, (enable_20dB_att ? GPO1_ATT20DB : 0));
+	int err = regmap_write(priv->fpga_regs, REGDAC_GPO1, (enable_20dB_att ? GPO1_ATT20DB : 0));
   if (err) {
-    pr_warn("jedac_bcm: set_attenuation(): error=%d in i2c codec write!\n", err);
+    pr_warn("jedac_bcm: set_attenuation(): in \"%s\" i2c write: err=%d!\n", priv->fpga->name, err);
     // continue further operation...
   } else {
 		pr_info("jedac_bcm: set_attenuation(): wrote enable_20db_att=%d\n", enable_20dB_att);

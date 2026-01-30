@@ -72,12 +72,6 @@ const struct regmap_config jedac_regmap_config = {
 	.cache_type = REGCACHE_RBTREE,
 };
 
-#if 0
-struct jedac_codec_priv {
-	struct regmap *regmap;
-};
-#endif
-
 static int codec_set_dai_fmt(struct snd_soc_dai *codec_dai,
                              unsigned int format)
 {
@@ -217,18 +211,10 @@ static int codec_i2c_probe(struct i2c_client *i2c)
 	struct regmap *regmap = devm_regmap_init_i2c(i2c, &jedac_regmap_config);
 	if (IS_ERR(regmap)) {
 		ret = PTR_ERR(regmap);
-		dev_err(dev, "Failed to register i2c regmap: %d\n", ret);
+		dev_err(dev, "jedac_codec: Failed to register i2c regmap for \"%s\": %d\n", i2c->name, ret);
 		return ret;
 	}
-
-#if 0
- 	struct jedac_codec_priv *jedac_priv = devm_kzalloc(dev, sizeof(struct jedac_codec_priv), GFP_KERNEL);
-	if (!jedac_priv)
-		return -ENOMEM;
-
-	dev_set_drvdata(dev, jedac_priv);
-	jedac_priv->regmap = regmap;
-#endif
+	// Note: this codec regmap is also used at card level, in 'jedac_bcm.c"
 
 	ret = snd_soc_register_component(dev, &jedac_codec_driver, &jedac_dai, 1);
 	if (ret && ret != -EPROBE_DEFER) {
