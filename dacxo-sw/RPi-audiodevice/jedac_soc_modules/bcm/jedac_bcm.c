@@ -577,3 +577,4 @@ static void jedac_set_attenuation( struct jedac_bcm_priv *priv, uint16_t att_l, 
 MODULE_AUTHOR("Jos van Eijndhoven <jos@vaneijndhoven.net>");
 MODULE_DESCRIPTION("ASoC driver for JvE DAC soundcard");
 MODULE_LICENSE("GPL v2");
+MODULE_SOFTDEP("pre: regmap_i2c"); // Hints to the kernel to load this first

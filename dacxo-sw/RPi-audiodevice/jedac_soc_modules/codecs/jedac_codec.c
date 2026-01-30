@@ -266,3 +266,4 @@ module_i2c_driver(codec_i2c_driver);
 MODULE_DESCRIPTION("ASoC jedac codec driver");
 MODULE_AUTHOR("Jos van Eijndhoven <jos@vaneijndhoven.net>");
 MODULE_LICENSE("GPL v2");
+MODULE_SOFTDEP("pre: regmap_i2c"); // Hints to the kernel to load this first
