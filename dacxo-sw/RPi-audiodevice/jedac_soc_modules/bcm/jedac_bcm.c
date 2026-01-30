@@ -107,6 +107,12 @@ static int jedac_pcm1792_init(struct i2c_client *dac, bool is_right_chan)
 	for (int i = 0; i < ARRAY_SIZE(inits) && !err; i++) {
 		err = regmap_write(regs, inits[i].reg_nr, inits[i].value);
 	}
+	for (int i = 0; i < ARRAY_SIZE(inits) && !err; i++) {
+		unsigned int val;
+		unsigned int reg = inits[i].reg_nr;
+		int err_rd = regmap_read(regs, reg, &value);
+		pr_info("jedac_bcm: verify init pcm1792a(%s): reg=%d, val=%d=0x%02x, err=%d\n", reg, val, val, err_rd);
+	}
 	return err;
 }
 
