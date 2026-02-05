@@ -424,12 +424,17 @@ static int snd_jedac_probe(struct platform_device *pdev)
 
 	// Obtain access to the gpio pin "uisync" to send signals to the UI controller
 	// The "uisync" name and its gpio pin are defined in the DTS overlay file
-	priv->uisync_gpio = devm_gpiod_get(&pdev->dev, "uisync", GPIOD_OUT_HIGH_OPEN_DRAIN);
-	if (IS_ERR(priv->uisync_gpio)) {
-		pr_err("jedac_bcm: failed to access the 'uisync' gpio pin!\n");
-		return -ENOENT;
-	} else {
-		pr_info("jedac_bcm: successfully acquired 'uisync' gpio pin!\n");
+	// ... and check if we already acquired the GPIO in a previous (deferred) probe attempt
+  if (!priv->uisync_gpio) {
+	  priv->uisync_gpio = devm_gpiod_get(&pdev->dev, "uisync", GPIOD_OUT_HIGH_OPEN_DRAIN);
+	  if (IS_ERR(priv->uisync_gpio)) {
+			int gpio_err = PTR_ERR(priv->uisync_gpio);
+		  pr_err("jedac_bcm: failed to access the 'uisync' gpio pin!, err=%d\n", gpio_err);
+			priv->uisync_gpio = NULL;
+		  return gpio_err;
+	  } else {
+		  pr_info("jedac_bcm: successfully acquired 'uisync' gpio pin!\n");
+	  }
 	}
 
 	struct snd_soc_dai_link *dai = &jedac_dai_link[0];
