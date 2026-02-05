@@ -104,29 +104,19 @@ static int jedac_pcm1792_init(struct i2c_client *dac, bool is_powered, bool is_r
 		dac->name, (is_right_chan ? "Right" : "Left"), is_powered);
 
 	struct regmap *regs = dev_get_regmap(&dac->dev, NULL);
-	int err = IS_ERR(regs);
-	if (err) {
-    pr_err("jedac_bcm: initialize pcm1792a(%s) i2c registers failed: no regmap?: err=%d\n", (is_right_chan ? "Right" : "Left"), err);
-		return err;
+	if (!regs) {
+    dev_err(&dac->dev, "jedac_bcm: initialize pcm1792a(%s) i2c registers failed: no regmap?\n", (is_right_chan ? "Right" : "Left"));
+		return -ENODEV;
 	}
 
 	if (!is_powered) {
-    regcache_cache_only(regs, true);
-  }
+	  regcache_cache_only(regs, true);
+	}
 
+	int err = 0;
 	for (int i = 0; i < ARRAY_SIZE(inits) && !err; i++) {
 		err = regmap_write(regs, inits[i].reg_nr, inits[i].value);
 		pr_info("jedac_bcm: init pcm1792a:  write reg=%d, val=0x%02x, err=%d\n", inits[i].reg_nr, inits[i].value, err);
-	}
-
-	for (int i = 0; i < ARRAY_SIZE(inits); i++) {
-		unsigned int val;
-		unsigned int reg = inits[i].reg_nr;
-		int err_rd = regmap_read(regs, reg, &val);
-		pr_info("jedac_bcm: verify init pcm1792a: reg=%d, val=%d=0x%02x, err=%d\n", reg, val, val, err_rd);
-		if (err_rd) {
-			dev_err(&dac->dev, "jedac_bcm: verify init pcm1792a: reg=%d, val=%d=0x%02x, err=%d\n", reg, val, val, err_rd);
-		}
 	}
 
 	if (!is_powered) {
@@ -146,17 +136,25 @@ static int jedac_bcm_init(struct snd_soc_pcm_runtime *rtd)
 	  return -EINVAL;
 
   // Note that the FPGA has already done its own init during its 'probe()'
-  uint8_t power_measured_on = 0;
+  bool is_powered = false;
 	unsigned int gpi1_val = 0;
   int err = regmap_read(priv->fpga_regs, REGDAC_GPI1, &gpi1_val);
 	if (!err) {
-		power_measured_on = (gpi1_val & GPI1_ANAPWR) != 0;
+		is_powered = (gpi1_val & GPI1_ANAPWR) != 0;
+	}
+
+	if (is_powered) {
+		gpiod_set_value(priv->uisync_gpio, 0);  // pull-down 'uisync' pin: signal UI controller on change and stay silent
 	}
 
 	// the pcm1792 dac chip registers get initial assignment.
 	// When they are not yet powered-up, this initialization remains in the regmap cache,
-  jedac_pcm1792_init(priv->dac_l, power_measured_on, false);
-	jedac_pcm1792_init(priv->dac_r, power_measured_on, true);
+  jedac_pcm1792_init(priv->dac_l, is_powered, false);
+	jedac_pcm1792_init(priv->dac_r, is_powered, true);
+
+	if (is_powered) {
+		gpiod_set_value(priv->uisync_gpio, 1);
+	}
 
 	return 0;
 }
@@ -193,7 +191,7 @@ static int bcm_vol_put(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value 
   uint16_t vol_l = ucontrol->value.integer.value[0];
   uint16_t vol_r = ucontrol->value.integer.value[1];
 	
-	// ALSA values are configured to 0 (mute) to 80 (0dB)
+	// ALSA values are configured to 0 (mute) to 80 (0dB, max volume)
 	pr_info("jedac_bcm: vol_put() ALSA vol_l=%u, vol_r=%d\n", vol_l, vol_r);
 
 	uint32_t new_vol = (vol_l << 16) | vol_r;
@@ -311,23 +309,23 @@ static int jedac_bcm_power_event(struct snd_soc_dapm_widget *w,
 		}
 
     /* B. Wait for analog power to come up slowly */
-		uint8_t power_measured_on = 0;
+		bool is_powered = false;
 		for (int i = 0; i < 5; i++) {
 	    unsigned int gpi1_val = 0;
       err = regmap_read(priv->fpga_regs, REGDAC_GPI1, &gpi1_val);
 		  if (!err) {
-			  power_measured_on = (gpi1_val & GPI1_ANAPWR) != 0;
+			  is_powered = (gpi1_val & GPI1_ANAPWR) != 0;
 		  }
 			pr_info("jedac_bcm: power_event: DAC rails: regmap_err=%d, gpi1=0x%02x, Vana confirmed=%d\n",
-				err, gpi1_val, power_measured_on);
-			if (power_measured_on)
+				err, gpi1_val, is_powered);
+			if (is_powered)
 			  break;
 
 			msleep(200);  // milliseconds: wait and retry..
 		}
 
     /* C. Now that DACs have power, initialize them via I2C */
-		if (power_measured_on) {
+		if (is_powered) {
 			pr_info("jedac_bcm: flush regmap cache to pcm1792 dacs");
       // Mark the register cache as "Dirty", then "Sync" to write cached values
 			struct regmap *regs = dev_get_regmap(&priv->dac_l->dev, NULL);
@@ -477,17 +475,17 @@ static int snd_jedac_probe(struct platform_device *pdev)
 	// The two pcm1792 regmaps are created here:
 	if (priv->dac_l) {
     struct regmap *regs = devm_regmap_init_i2c(priv->dac_l, &pcm1792_regmap_config);
-	  if (IS_ERR(regs)) {
-		  dev_err(&priv->dac_l->dev, "jedac_codec: Failed to register i2c regmap for \"%s\": err=%d\n", priv->dac_l->name, ret);
-		  return PTR_ERR(regs);
+	  if (!regs) {
+		  dev_err(&priv->dac_l->dev, "jedac_codec: Failed to register i2c regmap for Left Dac!\n");
+		  return -ENODEV;
 	  }
   }
 
 	if (priv->dac_r) {
     struct regmap *regs = devm_regmap_init_i2c(priv->dac_r, &pcm1792_regmap_config);
-	  if (IS_ERR(regs)) {
-		  dev_err(&priv->dac_r->dev, "jedac_codec: Failed to register i2c regmap for \"%s\": err=%d\n", priv->dac_r->name, ret);
-		  return PTR_ERR(regs);
+	  if (!regs) {
+		  dev_err(&priv->dac_r->dev, "jedac_codec: Failed to register i2c regmap for Right Dac\n");
+		  return -ENODEV;
 	  }
   }
 
@@ -562,7 +560,8 @@ module_platform_driver(snd_rpi_jedac_driver);
 
 static void jedac_set_attenuation_pcm1792(struct i2c_client *dac, uint16_t att)
 {
-	unsigned int chip_att = (att == 0) ? 0 : (255 - ((80 - att) * 2));
+	unsigned int chip_att = (att >= DAC_max_attenuation_dB) ? 0 : (255 - 2 * att);
+	// For the chip register: 255 is 0dB attenuation, full volume. Lower values give 0.5dB per step
 	// write att value to both left and right on-chip channel, as we use mono mode
 	struct regmap *regs = dev_get_regmap(&dac->dev, NULL);
 	int err = regmap_write(regs, PCM1792A_DAC_VOL_LEFT, chip_att);
@@ -570,7 +569,6 @@ static void jedac_set_attenuation_pcm1792(struct i2c_client *dac, uint16_t att)
 	  err = regmap_write(regs, PCM1792A_DAC_VOL_RIGHT, chip_att);
 
   if (err) {
-    pr_warn("jedac_bcm: set_attenuation_pcn1792(): \"%s\" i2c write: err=%d\n", dev_name(&dac->dev), err);
 		dev_warn(&dac->dev, "jedac_bcm: set_attenuation_pcn1792(): write err=%d\n", err);
 	}
 }
@@ -589,6 +587,7 @@ static void jedac_set_attenuation( struct jedac_bcm_priv *priv, uint16_t att_l, 
     att_r -= 20; // raise digital (dac) volume
   }
 	
+	gpiod_set_value(priv->uisync_gpio, 0);  // pull-down 'uisync' pin: signal UI controller on change and stay silent
 	// write the board 20dB_attenuation to the fpga:
 	int err = regmap_write(priv->fpga_regs, REGDAC_GPO1, (enable_20dB_att ? GPO1_ATT20DB : 0));
   if (err) {
@@ -602,6 +601,7 @@ static void jedac_set_attenuation( struct jedac_bcm_priv *priv, uint16_t att_l, 
 	// write the volume to each of both codecs
   jedac_set_attenuation_pcm1792(priv->dac_l, att_l);
   jedac_set_attenuation_pcm1792(priv->dac_r, att_r);
+	gpiod_set_value(priv->uisync_gpio, 0);
 }
 
 /*****************************************************************************/
