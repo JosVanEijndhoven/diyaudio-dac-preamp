@@ -466,14 +466,14 @@ static int snd_jedac_probe(struct platform_device *pdev)
 	// Obtain access to the FPGA i2c registers.
 	// This might need a further 'DEFER': need to wait until the codec 'probe' finishes,
 	// so it has allocated its regmap:
-	if (priv->fpga) {
+	if (priv->fpga && !priv->fpga_regs) {
 	  priv->fpga_regs = dev_get_regmap(&priv->fpga->dev, NULL);
 		if (!priv->fpga_regs && (ret == 0))
 		  ret = -EPROBE_DEFER;
 	}
 
 	// The two pcm1792 regmaps are created here:
-	if (priv->dac_l) {
+	if (priv->dac_l && !dev_get_regmap(&priv->dac_l->dev, NULL)) {
     struct regmap *regs = devm_regmap_init_i2c(priv->dac_l, &pcm1792_regmap_config);
 	  if (!regs) {
 		  dev_err(&priv->dac_l->dev, "jedac_codec: Failed to register i2c regmap for Left Dac!\n");
@@ -481,7 +481,7 @@ static int snd_jedac_probe(struct platform_device *pdev)
 	  }
   }
 
-	if (priv->dac_r) {
+	if (priv->dac_r && !dev_get_regmap(&priv->dac_r->dev, NULL)) {
     struct regmap *regs = devm_regmap_init_i2c(priv->dac_r, &pcm1792_regmap_config);
 	  if (!regs) {
 		  dev_err(&priv->dac_r->dev, "jedac_codec: Failed to register i2c regmap for Right Dac\n");
