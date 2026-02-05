@@ -59,6 +59,7 @@
 // CLKRATE: in master mode: 1:44.1 or 48, 2: 88.2 or 96, 3: 176.4 or 192kHz
 //          in slave mode: input channel select 0..3
 #define GPO0_CLKRATE		0x0c
+#define GPO0_SLVINPUT   0x0c
 // gather the above three fields in a mask that concerns clock config:
 #define GPO0_CLKMASK    0x0f
 #define GPO0_POWERUP		0x80   // output to Vana power relay: 1: power switched on, 0: off

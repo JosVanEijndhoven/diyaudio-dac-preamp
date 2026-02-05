@@ -215,16 +215,92 @@ static int bcm_vol_put(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value 
 static DECLARE_TLV_DB_SCALE(dac_db_scale, (-100 * DAC_max_attenuation_dB),
 	                        (100 * DAC_step_attenuation_dB), 1);
 
+// Define the input names for the mixer UI
+static const char *const jedac_input_texts[] = {
+    "Raspberry Pi", "HDMI/Spdif Coax 1", "Spdif Coax 2", "Spdif Optical 1", "Spdif Optical 2"
+};
+/* * SOC_ENUM_SINGLE(reg, shift, max_items, texts)
+ * reg:   The FPGA register (e.g., REGDAC_SOURCE)
+ * shift: The bit position where the selection starts
+ * 5:     Number of items in the list
+ */
+static const struct soc_enum jedac_input_enum =
+    SOC_ENUM_SINGLE(REGDAC_GPO0, 2, 5, jedac_input_texts);
+
+static int jedac_input_put(struct snd_kcontrol *kcontrol,
+                           struct snd_ctl_elem_value *ucontrol)
+{
+  struct snd_soc_card *card = snd_kcontrol_chip(kcontrol);
+  struct jedac_bcm_priv *priv = snd_soc_card_get_drvdata(card);
+  unsigned int sel = ucontrol->value.enumerated.item[0];
+
+  if (sel >= 5) return -EINVAL; // Safety check
+
+	// 1. Read current state to see if we actually need to do anything
+	unsigned int gpo0;
+  int err = regmap_read(priv->fpga_regs, REGDAC_GPO0, &gpo0);
+  if (err) return err;
+
+	unsigned int curr_input_sel = ((gpo0 & GPO0_CLKMASTER) == 0) ? (((gpo0 & GPO0_SLVINPUT) >> 2) + 1) : 0;
+	if (sel == curr_input_sel)
+		return 0;  // no change on input select
+
+  dev_info(card->dev, "jedac_bcm: Switching input to %d\n", sel);
+  gpiod_set_value(priv->uisync_gpio, 0);  // pull-down 'uisync' pin: signal UI controller on change and stay silent
+  
+  // 2. Perform the I2C write to the FPGA
+	if (sel == 0) {
+		// I2S input: enough to put DAC in clock master mode:
+    err = regmap_update_bits(priv->fpga_regs, REGDAC_GPO0,
+			                       GPO0_CLKMASTER, GPO0_CLKMASTER);
+	} else {
+		// Put DAC in clock slave mode with input select
+		unsigned int spdif_input = sel - 1;
+    err = regmap_update_bits(priv->fpga_regs, REGDAC_GPO0,
+			                       GPO0_CLKMASTER | GPO0_SLVINPUT, (spdif_input << 2));
+	}
+	gpiod_set_value(priv->uisync_gpio, 1);
+  if (err) return err;
+
+  return 1; // Return 1 to inform ALSA the value actually changed
+}
+
+static int jedac_input_get(struct snd_kcontrol *kcontrol,
+                           struct snd_ctl_elem_value *ucontrol)
+{
+  struct snd_soc_card *card = snd_kcontrol_chip(kcontrol);
+  struct jedac_bcm_priv *priv = snd_soc_card_get_drvdata(card);
+  unsigned int val;
+
+  // Read directly from the FPGA to see what the hardware is actually doing
+  int err = regmap_read(priv->fpga_regs, REGDAC_GPO0, &val);
+  if (err)
+      return err;
+
+	unsigned int input_nr = ((val & GPO0_CLKMASTER) == GPO0_CLKMASTER)
+	                      ? 0
+												: ((val & GPO0_SLVINPUT) >> 2) + 1;
+  // ALSA expects the index to be placed in this specific union member
+  // Range: 0 to 4
+  ucontrol->value.enumerated.item[0] = input_nr;
+
+  return 0;
+}
+
 static const struct snd_kcontrol_new jedac_controls[] = {
 	{
         .iface = SNDRV_CTL_ELEM_IFACE_MIXER,
-        .name = "Master Playback Volume",
+        .name = "Master",  // or: Master Playback Volume
         .access = SNDRV_CTL_ELEM_ACCESS_READWRITE | SNDRV_CTL_ELEM_ACCESS_TLV_READ,
         .info = bcm_vol_info,
         .get  = bcm_vol_get,
         .put  = bcm_vol_put,
         .tlv.p = dac_db_scale,
   },
+	SOC_ENUM_EXT("Input Source",
+		           jedac_input_enum, 
+               jedac_input_get,
+               jedac_input_put)
 };
 
 /* startup */
