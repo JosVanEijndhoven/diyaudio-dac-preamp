@@ -69,9 +69,10 @@ clean_install: clean
 	sudo rm -f $(INSTALL_KOS) $(INSTALL_DTB) $(NSTALL_SERVICE) $(INSTALL_ASOUND)
 
 uninstall:
+	sudo systemctl stop jedac.service ;\
 	sudo dtoverlay -v -r jedac; \
 	sudo modprobe -v -r snd_soc_jedac_codec snd_soc_jedac_bcm ;\
-	sudo rm -f $(INSTALL_KOS) $(INSTALL_DTB) $(NSTALL_SERVICE) $(INSTALL_ASOUND)
+	sudo rm -f $(INSTALL_KOS) $(INSTALL_DTB) $(INSTALL_SERVICE) $(INSTALL_ASOUND)
 
 test_dtoverlay: $(INSTALL_KOS) $(INSTALL_DTB)
 	sudo sysctl -w kernel.printk=6 ;\
