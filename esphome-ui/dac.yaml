@@ -58,7 +58,7 @@
 #                       bit3: rx_lock
 #                       bit2: PIN_ext4: reset dacs, active low
 #                       bit1: PIN_ext5
-#                       bit0: PIN_Vana: stay in reset if Vana is low
+#                       bit0: PIN_Vana: Several signals stay low if Vana is low: input measured from Vana voltage
 # The pair of PCM1792a dac chips:
 # A created 'external' esphome component provides an improved API, controlling such chip through i2c.
 # This component is hereby provided in the 'components/pcm1792_i2c' subdirectory
