@@ -54,7 +54,7 @@ show_card:
 	amixer
 
 sound:
-	speaker-test -c 2 -r 96000 -F S24_LE -f 440 -t sine -l 1
+	speaker-test -D hw:JEDAC -c 2 -r 96000 -F S24_LE -f 440 -t sine -l 1
 
 $(BACKUP): ./Makefile
 	cp /boot/config.txt boot && \
