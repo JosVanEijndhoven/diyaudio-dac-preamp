@@ -369,7 +369,7 @@ static int jedac_bcm_power_event(struct snd_soc_dapm_widget *w,
 
   if (SND_SOC_DAPM_EVENT_ON(event)) {
     dev_info(card->dev, "JEDAC: Powering up DAC rails, (power switch state is %d)\n", power_is_on);
-		if (power_is_on) {
+		if (power_is_on)
 			return 0;
 
     /* A. Tell FPGA to power ON the DACs */
