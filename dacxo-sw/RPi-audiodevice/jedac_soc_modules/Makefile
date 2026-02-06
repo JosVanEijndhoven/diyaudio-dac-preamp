@@ -73,7 +73,7 @@ uninstall:
 
 test_dtoverlay: $(INSTALL_KOS) $(INSTALL_DTB)
 	sudo sysctl -w kernel.printk=6 ;\
-	sudo dtoverlay -v jedac ;\
+	sudo dtoverlay -v jedac sync_pin=27 ;\
 	sleep 2 ;\
 	lsmod | grep 'jedac' ;\
 	dmesg | grep 'jedac' ;\

@@ -9,7 +9,7 @@
 /plugin/;
 
 / {
-	compatible = "brcm,bcm2710";
+	compatible = "brcm,bcm2835";
 
 
 	/* --- I2C Devices --- */
@@ -92,5 +92,12 @@
     __overlay__ {
         status = "okay";
     };
+  };
+
+  /* --- Runtime Override to parameterize the uisync gpio pin number, default is 27 --- */
+  __overrides__ {
+    /* Syntax: name = <target_phandle>,"property_name:offset_in_bytes" */
+    sync_pin = <&jedac_pins>,"brcm,pins:0",
+               <&jedac_sound>,"uisync-gpios:4"; 
   };
 };

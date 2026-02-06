@@ -57,8 +57,9 @@ dtparam=i2s=on
 
 # Additional overlays and parameters are documented /boot/overlays/README
 
-# Enable my DAC at system boot
-dtoverlay=jedac
+# Enable my DAC at system boot (show parameter for the 'uisync' gpio pin, '27' is just default)
+# Note: DON'T load this overlay here when using the systemd 'jedac.service'.
+dtoverlay=jedac,sync_pin=27
 
 # Enable audio (loads snd_bcm2835)
 dtparam=audio=on

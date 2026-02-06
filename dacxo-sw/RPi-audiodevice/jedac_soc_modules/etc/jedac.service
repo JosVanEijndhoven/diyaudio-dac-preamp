@@ -1,0 +1,44 @@
+# This file is to be installed as: /etc/systemd/system/jedac.service
+# Note: do NOT install this file when 'dtoverlay=jedac' is in the '/boot/firmware/config.txt'
+# After install, 'enable' it for automatic loading on subsequent reboots by:
+#    sudo systemctl enable jedac.service
+# Optionally, check its status with:
+#    systemctl is-enabled jedac.service
+
+[Unit]
+Description=JEDAC Audio Card Runtime Management
+DefaultDependencies=no
+
+# --- Safety Checks ---
+# Check for the Device Tree Overlay
+ConditionPathExists=/boot/overlays/jedac.dtbo
+
+# Check for both compiled kernel modules in the 'updates' directory
+# %v = current kernel version (uname -r)
+ConditionPathExists=/lib/modules/%v/updates/snd-soc-jedac_bcm.ko.xz
+ConditionPathExists=/lib/modules/%v/updates/snd-soc-jedac_codec.ko.xz
+
+# --- Ordering ---
+Before=sound.target alsa-restore.service alsa-state.service
+After=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+# 1. Load the Device Tree Overlay
+ExecStart=/usr/bin/dtoverlay jedac sync_pin=27
+
+# 2. Update module dependencies to ensure the ones in 'updates' are prioritized
+ExecStartPost=/sbin/depmod -a
+
+# --- Shutdown Sequence ---
+# 1. Remove the overlay (triggers driver .remove functions)
+ExecStop=/usr/bin/dtoverlay -r jedac
+
+# 2. Clean up modules (Card driver first, then Codec)
+ExecStopPost=/sbin/modprobe -r snd-soc-jedac_bcm
+ExecStopPost=/sbin/modprobe -r snd-soc-jedac_codec
+
+[Install]
+WantedBy=multi-user.target
