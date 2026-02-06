@@ -372,6 +372,8 @@ static int jedac_bcm_power_event(struct snd_soc_dapm_widget *w,
 		if (power_is_on)
 			return 0;
 
+		gpiod_set_value(priv->uisync_gpio, 0);  // pull-down 'uisync' pin: signal UI controller on change and stay silent
+
     /* A. Tell FPGA to power ON the DACs */
 		err = regmap_update_bits(priv->fpga_regs, REGDAC_GPO0, GPO0_POWERUP, GPO0_POWERUP);
 
@@ -398,21 +400,17 @@ static int jedac_bcm_power_event(struct snd_soc_dapm_widget *w,
 			struct regmap *regs = dev_get_regmap(&priv->dac_l->dev, NULL);
       regcache_mark_dirty(regs);
       int err_l = regcache_sync(regs);
-			unsigned int val;
-			int err_rd = regmap_read(regs, 18, &val);
-			pr_info("jedac_bcm: flush&sync err=%d, read back 18: val=0x%02x, err=%d\n", err_l, val, err_rd);
-			int phys_val = i2c_smbus_read_byte_data(priv->dac_l, 18); // Read register 18 (0x12)
-			if (phys_val < 0)
-        pr_info("jedac_bcm: bypass read of reg 18: err=%d\n", phys_val);
-			else
-        pr_info("jedac_bcm: bypass read of reg 18: val=0x%02x\n", phys_val);
 
 			regs = dev_get_regmap(&priv->dac_r->dev, NULL);
       regcache_mark_dirty(regs);
-      regcache_sync(regs);
+      int err_r = regcache_sync(regs);
+			if (err_l || err_r) {
+			  pr_warn("jedac_bcm: regmap flush&sync: left err=%d, right err=%d!\n", err_l, err_r);
+			}
 		} else {
 			pr_err("jedac_pcm: power_event: power-up DAC rails failed (err=%d)!", err);
 		}
+		gpiod_set_value(priv->uisync_gpio, 1);  // release pull-down 'uisync' pin
   }
   return err;
 }
@@ -673,7 +671,7 @@ static void jedac_set_attenuation( struct jedac_bcm_priv *priv, uint16_t att_l, 
 	// write the volume to each of both codecs
   jedac_set_attenuation_pcm1792(priv->dac_l, att_l);
   jedac_set_attenuation_pcm1792(priv->dac_r, att_r);
-	gpiod_set_value(priv->uisync_gpio, 0);
+	gpiod_set_value(priv->uisync_gpio, 1);
 }
 
 /*****************************************************************************/
