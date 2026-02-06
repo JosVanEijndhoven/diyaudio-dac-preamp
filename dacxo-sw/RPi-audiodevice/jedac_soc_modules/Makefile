@@ -25,7 +25,7 @@ INSTALL_ASOUND := /etc/asound.conf
 MODULES_ALIAS := /lib/modules/$(KERNELREV)/modules.alias
 INSTALL_ALL := $(INSTALL_KOS) $(MODULES_ALIAS) $(INSTALL_DTB) $(INSTALL_SERVICE) $(INSTALL_ASOUND)
 
-.PHONY: all tar backup dtbs modules install uninstall clean clean_install show show_regs show_card test_dtoverlay
+.PHONY: dtbs modules install uninstall clean clean_install show show_regs show_card sound test_dtoverlay
 
 install: $(INSTALL_ALL)
 
@@ -53,10 +53,8 @@ show_regs:
 show_card:
 	amixer
 
-tar: $(BACKUP)
-
-backup: $(BACKUP)
-	scp $< jos@DS213:Audio/DAC5/Raspberry/Backups/
+sound:
+	speaker-test -c 2 -r 96000 -F S24_LE -f 440 -t sine -l 1
 
 $(BACKUP): ./Makefile
 	cp /boot/config.txt boot && \
