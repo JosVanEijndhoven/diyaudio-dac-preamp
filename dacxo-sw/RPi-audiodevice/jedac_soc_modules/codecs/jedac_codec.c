@@ -80,7 +80,7 @@ static int codec_set_dai_fmt(struct snd_soc_dai *codec_dai,
 	return 0;
 }
 
-static int jedac_i2c_set_i2s(struct snd_soc_component *codec, int samplerate)
+static int jedac_set_i2s_rate(struct snd_soc_component *codec, int samplerate, struct gpio_desc *sync_pin)
 {
 	int freq_base, freq_mult;
 	
@@ -109,16 +109,25 @@ static int jedac_i2c_set_i2s(struct snd_soc_component *codec, int samplerate)
     return -EINVAL;
 	}
 
-	unsigned int gpo_val = GPO0_CLKMASTER | (freq_base << 1) | (freq_mult << 2);
-	
-	// set default clock config. Be carefull to not write the 'power' status bit:
-	int i2cerr = regmap_update_bits(map, REGDAC_GPO0, GPO0_CLKMASK, gpo_val);
+	unsigned int gpo0_new = GPO0_CLKMASTER | (freq_base << 1) | (freq_mult << 2);
+	unsigned int gpo0_curr = 0;
+  int reg_err = regmap_read(map, REGDAC_GPO0, &gpo0_curr);
+	if (reg_err || ((gpo0_new & GPO0_CLKMASK) == (gpo0_curr & GPO0_CLKMASK))) {
+		return reg_err;  // return early when gpo0 needs no update
+	}
 
-	if (i2cerr == 0)
-	  pr_info("jedac_codec: i2c_set_i2s: write GPO0=0x%02x  OK!\n", (int)(gpo_val));
+	// Create the 'uisync' gpio signal, surrounding the write on the i2c bus
+	gpiod_set_value(sync_pin, 0);  // pull-down 'uisync' pin: signal UI controller on change and stay silent
+
+	// set clock config. Be carefull to not write the 'power' status bit:
+	reg_err = regmap_update_bits(map, REGDAC_GPO0, GPO0_CLKMASK, gpo0_new);
+	gpiod_set_value(sync_pin, 1);  // release pin
+
+	if (reg_err == 0)
+	  pr_info("jedac_codec: set_i2s_rate: write GPO0=0x%02x with mask 0x%02x OK!\n", (int)(gpo0_new), GPO0_CLKMASK);
 	else
-	  pr_warn("jedac_codec: i2c_set_i2s: write GPO0=0x%02x, i2c write error=%d\n", (int)(gpo_val), i2cerr);
-	return i2cerr;
+	  pr_warn("jedac_codec: set_i2s_rate: write GPO0=0x%02x, i2c write error=%d\n", (int)(gpo0_new), reg_err);
+	return reg_err;
 }
 
 static int codec_hw_params(struct snd_pcm_substream *substream,
@@ -134,11 +143,8 @@ static int codec_hw_params(struct snd_pcm_substream *substream,
 	int samplewidth = snd_pcm_format_width(params_format(params));
 	int clk_ratio = 64; // fixed bclk ratio is easiest for my HW
 
-	// Create the 'uisync' gpio signal, surrounding the two calls that write to the FPGA
-	gpiod_set_value(card_priv->uisync_gpio, 0);  // pull-down 'uisync' pin: signal UI controller on change and stay silent
 	int err_clk = snd_soc_dai_set_bclk_ratio(cpu_dai, clk_ratio);
-	int err_rate = jedac_i2c_set_i2s(codec, samplerate);
-	gpiod_set_value(card_priv->uisync_gpio, 1);  // release pull-down 'uisync' pin
+	int err_rate = jedac_set_i2s_rate(codec, samplerate, card_priv->uisync_gpio);
 	
 	//	snd_pcm_format_physical_width(params_format(params));
 	pr_info("jedac_codec: hw_params(rate=%d, width=%d) err_clk=%d err_rate=%d\n",
