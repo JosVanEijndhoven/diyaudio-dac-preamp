@@ -360,20 +360,20 @@ static int jedac_bcm_power_event(struct snd_soc_dapm_widget *w,
 
 	// Check current power relay status: Maybe got set manually outside scope of the DAPM framework.
 	unsigned int gpo0_val = 0;
-  int err = regmap_read(priv->fpga_regs, REGDAC_GPI0, &gpo0_val);
+  int err = regmap_read(priv->fpga_regs, REGDAC_GPO0, &gpo0_val);
 	if (err) {
 		pr_err("jedac_bcm power_event: i2c access error %d!\n", err);
 		return err;
 	}
-	uint8_t power_is_on = (gpo0_val & GPO0_POWERUP) != 0;
+	bool power_is_on = (gpo0_val & GPO0_POWERUP) != 0;
 
   if (SND_SOC_DAPM_EVENT_ON(event)) {
     dev_info(card->dev, "JEDAC: Powering up DAC rails, (power switch state is %d)\n", power_is_on);
+		if (power_is_on) {
+			return 0;
 
     /* A. Tell FPGA to power ON the DACs */
-		if (!power_is_on) {
-		  err = regmap_update_bits(priv->fpga_regs, REGDAC_GPO0, GPO0_POWERUP, GPO0_POWERUP);
-		}
+		err = regmap_update_bits(priv->fpga_regs, REGDAC_GPO0, GPO0_POWERUP, GPO0_POWERUP);
 
     /* B. Wait for analog power to come up slowly */
 		bool is_powered = false;
