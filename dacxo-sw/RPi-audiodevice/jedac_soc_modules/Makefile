@@ -23,10 +23,15 @@ INSTALL_DTB := /boot/overlays/jedac.dtbo
 INSTALL_SERVICE := /etc/systemd/system/jedac.service
 INSTALL_ASOUND := /etc/asound.conf
 MODULES_ALIAS := /lib/modules/$(KERNELREV)/modules.alias
+INSTALL_ALL := $(INSTALL_KOS) $(MODULES_ALIAS) $(INSTALL_DTB) $(INSTALL_SERVICE) $(INSTALL_ASOUND)
 
 .PHONY: all tar backup dtbs modules install uninstall clean clean_install show show_regs show_card test_dtoverlay
 
-install: $(INSTALL_KOS) $(MODULES_ALIAS) $(INSTALL_DTB) $(NSTALL_SERVICE) $(INSTALL_ASOUND)
+install: $(INSTALL_ALL)
+
+life: $(INSTALL_ALL)
+	sudo systemctl enable jedac.service
+	sudo systemctl start jedac.service
 
 dtbs:    $(INSTALL_DTB)
 modules: $(LINUXHDR) $(LOCAL_KOS)
@@ -102,7 +107,6 @@ $(INSTALL_INITD): etc/init.d.jedac
 
 $(INSTALL_SERVICE): etc/jedac.service
 	sudo cp $< $@
-	sudo systemctl enable jedac.service
 
 $(INSTALL_ASOUND): etc/asound.conf
 	sudo cp $< $@
