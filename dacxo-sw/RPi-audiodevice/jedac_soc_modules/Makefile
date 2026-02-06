@@ -20,14 +20,13 @@ LOCAL_KOS  := codecs/snd-soc-jedac_codec.ko \
 
 INSTALL_KOS := $(addsuffix .xz,$(addprefix $(INSTALLDIR)/,$(notdir $(LOCAL_KOS))))
 INSTALL_DTB := /boot/overlays/jedac.dtbo
-INSTALL_INITD := /etc/init.d/jedac
+INSTALL_SERVICE := /etc/systemd/system/jedac.service
+INSTALL_ASOUND := /etc/asound.conf
 MODULES_ALIAS := /lib/modules/$(KERNELREV)/modules.alias
 
-.PHONY: all tar backup dtbs modules install uninstall clean clean_install show show_regs test_dtoverlay
+.PHONY: all tar backup dtbs modules install uninstall clean clean_install show show_regs show_card test_dtoverlay
 
-# install: $(INSTALL_KOS) $(INSTALL_DTB) $(INSTALL_INITD)
-# install: $(INSTALL_KOS) $(INSTALL_DTB) $(MODULES_ALIAS)
-install: $(INSTALL_KOS) $(INSTALL_DTB)
+install: $(INSTALL_KOS) $(MODULES_ALIAS) $(INSTALL_DTB) $(NSTALL_SERVICE) $(INSTALL_ASOUND)
 
 dtbs:    $(INSTALL_DTB)
 modules: $(LINUXHDR) $(LOCAL_KOS)
@@ -45,6 +44,9 @@ show_regs:
 	@sudo cat /sys/kernel/debug/regmap/1-004d/registers
 	@echo 'Right pcm1792 Registers:'
 	@sudo cat /sys/kernel/debug/regmap/1-004c/registers
+
+show_card:
+	amixer
 
 tar: $(BACKUP)
 
@@ -64,12 +66,12 @@ clean:
 	rm -f overlays/*.dtbo overlays/*.dtb dry_run.*
 
 clean_install: clean
-	sudo rm -f $(INSTALL_KOS) $(INSTALL_DTB)
+	sudo rm -f $(INSTALL_KOS) $(INSTALL_DTB) $(NSTALL_SERVICE) $(INSTALL_ASOUND)
 
 uninstall:
 	sudo dtoverlay -v -r jedac; \
 	sudo modprobe -v -r snd_soc_jedac_codec snd_soc_jedac_bcm ;\
-	sudo rm -f $(INSTALL_KOS) $(INSTALL_DTB)
+	sudo rm -f $(INSTALL_KOS) $(INSTALL_DTB) $(NSTALL_SERVICE) $(INSTALL_ASOUND)
 
 test_dtoverlay: $(INSTALL_KOS) $(INSTALL_DTB)
 	sudo sysctl -w kernel.printk=6 ;\
@@ -96,6 +98,13 @@ $(INSTALLDIR)/snd-soc-%.ko.xz: codecs/snd-soc-%.ko  | $(INSTALLDIR)
 
 $(INSTALL_INITD): etc/init.d.jedac
 	sudo cp $< $@ && sudo chmod 0755 $@
+
+$(INSTALL_SERVICE): etc/jedac.service
+	sudo cp $< $@
+	sudo systemctl enable jedac.service
+
+$(INSTALL_ASOUND): etc/asound.conf
+	sudo cp $< $@
 
 bcm/snd-soc-jedac_bcm.ko: bcm/jedac_bcm.c codecs/jedac.h codecs/pcm1792a.h
 	cd bcm && $(MAKE) -C $(LINUXHDR) M=$$PWD modules
