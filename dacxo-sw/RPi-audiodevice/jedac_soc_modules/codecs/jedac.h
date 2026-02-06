@@ -18,6 +18,17 @@
 #ifndef _JEDAC_H
 #define _JEDAC_H
 
+// somewhat dirty architecture to share the card 'private data' struct type
+// with the codec :-(   Just easy and pragmatic...
+struct jedac_bcm_priv {
+	  struct gpio_desc *uisync_gpio;
+		struct i2c_client *fpga;
+    struct i2c_client *dac_l;
+    struct i2c_client *dac_r;
+		struct regmap *fpga_regs;
+    uint32_t prev_volume;
+};
+
 #define DAC_IS_CLK_MASTER 1
 
 #ifdef DAC_IS_CLK_MASTER

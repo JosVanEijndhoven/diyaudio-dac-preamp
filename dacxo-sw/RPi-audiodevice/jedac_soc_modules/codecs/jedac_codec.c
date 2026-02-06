@@ -30,6 +30,7 @@
 #include <linux/device.h>
 #include <linux/printk.h>
 #include <linux/i2c.h>
+#include <linux/gpio/consumer.h>
 #include <linux/regmap.h>
 
 #include <sound/core.h>
@@ -102,13 +103,6 @@ static int jedac_i2c_set_i2s(struct snd_soc_component *codec, int samplerate)
 			freq_mult = 0; // illegal/unsupported samplerate
 	}
 	
-	// send a trigger to the ui controller: denote a busy i2c and changed dac settings
-	// struct jedac_bcm_priv *priv = snd_soc_card_get_drvdata(&jedac_sound_card);
-	// if (0 == gpiod_get_value(priv->uisync_gpio)) {
-	// 	pr_warn("jedac_bcm: jedac_i2c_set_i2s: unexpected 'low' on ui-trig gpio!");
-	// }
-	// gpiod_set_value(priv->uisync_gpio, 0);
-
 	struct regmap *map = dev_get_regmap(codec->dev, NULL);
 	if (!map) {
 		pr_err("jedac codec: regmap not found error!");
@@ -120,7 +114,6 @@ static int jedac_i2c_set_i2s(struct snd_soc_component *codec, int samplerate)
 	// set default clock config. Be carefull to not write the 'power' status bit:
 	int i2cerr = regmap_update_bits(map, REGDAC_GPO0, GPO0_CLKMASK, gpo_val);
 
-	// gpiod_set_value(priv->uisync_gpio, 1);  // clear the ui trigger pulse
 	if (i2cerr == 0)
 	  pr_info("jedac_codec: i2c_set_i2s: write GPO0=0x%02x  OK!\n", (int)(gpo_val));
 	else
@@ -133,13 +126,19 @@ static int codec_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_soc_dai *dai)
 {
   struct snd_soc_component *codec = dai->component;
+  struct snd_soc_card *card = codec->card;
+  struct jedac_bcm_priv *card_priv = snd_soc_card_get_drvdata(card);
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
 	int samplerate = params_rate(params);
 	int samplewidth = snd_pcm_format_width(params_format(params));
 	int clk_ratio = 64; // fixed bclk ratio is easiest for my HW
+
+	// Create the 'uisync' gpio signal, surrounding the two calls that write to the FPGA
+	gpiod_set_value(card_priv->uisync_gpio, 0);  // pull-down 'uisync' pin: signal UI controller on change and stay silent
 	int err_clk = snd_soc_dai_set_bclk_ratio(cpu_dai, clk_ratio);
 	int err_rate = jedac_i2c_set_i2s(codec, samplerate);
+	gpiod_set_value(card_priv->uisync_gpio, 1);  // release pull-down 'uisync' pin
 	
 	//	snd_pcm_format_physical_width(params_format(params));
 	pr_info("jedac_codec: hw_params(rate=%d, width=%d) err_clk=%d err_rate=%d\n",

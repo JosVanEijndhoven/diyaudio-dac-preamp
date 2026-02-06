@@ -43,15 +43,6 @@
 #include "../codecs/jedac.h"
 #include "../codecs/pcm1792a.h"
 
-struct jedac_bcm_priv {
-	  struct gpio_desc *uisync_gpio;
-		struct i2c_client *fpga;
-    struct i2c_client *dac_l;
-    struct i2c_client *dac_r;
-		struct regmap *fpga_regs;
-    uint32_t prev_volume;
-};
-
 static const struct reg_default pcm1792a_reg_defaults[] = {
 	{ PCM1792A_DAC_VOL_LEFT,   PCM1792A_DAC_VOL_LEFT_DEFAULT},
   { PCM1792A_DAC_VOL_RIGHT,  PCM1792A_DAC_VOL_RIGHT_DEFAULT },
