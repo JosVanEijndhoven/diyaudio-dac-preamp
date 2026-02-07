@@ -23,19 +23,21 @@ INSTALL_DTB := /boot/overlays/jedac.dtbo
 INSTALL_SERVICE := /etc/systemd/system/jedac.service
 INSTALL_ASOUND := /etc/asound.conf
 MODULES_ALIAS := /lib/modules/$(KERNELREV)/modules.alias
-INSTALL_ALL := $(INSTALL_KOS) $(MODULES_ALIAS) $(INSTALL_DTB) $(INSTALL_SERVICE) $(INSTALL_ASOUND)
+INSTALL_ALL := $(INSTALL_KOS) $(MODULES_ALIAS) $(INSTALL_DTB) $(INSTALL_ASOUND)
 
-.PHONY: dtbs modules install uninstall clean clean_install show show_regs show_card sound test_dtoverlay
+.PHONY: dtbs backup modules install uninstall clean show show_regs show_card sound test_dtoverlay
 
 install: $(INSTALL_ALL)
 
-life: $(INSTALL_ALL)
+install_service: $(INSTALL_SERVICE)
 	sudo systemctl enable jedac.service
 	sudo systemctl start jedac.service
 
 dtbs:    $(INSTALL_DTB)
 modules: $(LINUXHDR) $(LOCAL_KOS)
-show:
+backup:  $(BACKUP)
+
+show_places:
 	@echo '  LINUXHDR=' $(LINUXHDR)
 	@echo '  LINUXOVLS=' $(LINUXOVLS)
 	@echo '  INSTALLDIR=' $(INSTALLDIR)
@@ -51,7 +53,7 @@ show_regs:
 	@sudo cat /sys/kernel/debug/regmap/1-004c/registers
 
 show_card:
-	amixer
+	amixer -c JEDAC contents
 
 sound:
 	speaker-test -D hw:JEDAC -c 2 -r 96000 -F S24_LE -f 440 -t sine -l 1
@@ -67,9 +69,6 @@ clean:
 	cd bcm && $(MAKE) -C $(LINUXHDR) M=$$PWD clean
 	cd codecs && $(MAKE) -C $(LINUXHDR) M=$$PWD clean
 	rm -f overlays/*.dtbo overlays/*.dtb dry_run.*
-
-clean_install: clean
-	sudo rm -f $(INSTALL_KOS) $(INSTALL_DTB) $(NSTALL_SERVICE) $(INSTALL_ASOUND)
 
 uninstall:
 	sudo systemctl stop jedac.service ;\
@@ -100,9 +99,6 @@ $(INSTALLDIR)/snd-soc-jedac_bcm.ko.xz: bcm/snd-soc-jedac_bcm.ko | $(INSTALLDIR)
 $(INSTALLDIR)/snd-soc-%.ko.xz: codecs/snd-soc-%.ko  | $(INSTALLDIR)
 	cd codecs && sudo $(MAKE) -C $(LINUXHDR) M=$$PWD modules_install
 
-$(INSTALL_INITD): etc/init.d.jedac
-	sudo cp $< $@ && sudo chmod 0755 $@
-
 $(INSTALL_SERVICE): etc/jedac.service
 	sudo cp $< $@
 
@@ -115,8 +111,6 @@ bcm/snd-soc-jedac_bcm.ko: bcm/jedac_bcm.c codecs/jedac.h codecs/pcm1792a.h
 codecs/snd-soc-jedac_codec.ko: codecs/jedac_codec.c codecs/jedac.h
 	cd codecs && $(MAKE) -C $(LINUXHDR) M=$$PWD modules
 
-# Modified output from jedac-overlay.dtb to jedac.dtbo, 
-# in accordance with new debian naming policy as of version 4.4
 $(INSTALL_DTB) : overlays/jedac.dtbo
 	sudo cp $< $@
 
