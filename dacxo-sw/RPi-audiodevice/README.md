@@ -1,26 +1,28 @@
-# Audio device driver
+# Audio device driver for Linux
 
 ## Introduction
 
 This DAC design initially/traditionally focussed on using the four s/pdif inputs on its digital board: two coax and two optical inputs.
-However, that board also provides a fifth digital audio input:
-an *i2s* input intended to connect
+However, the board also provides a fifth digital audio input:
+an [i2s](https://en.wikipedia.org/wiki/I2S) input intended to connect
 an audio network streaming device in the form of a Raspberry Pi.
 I chose a tiny
 [Raspberry Pi zero 2w](https://www.raspberrypi.com/products/raspberry-pi-zero-2-w/) for this purpose.
 
 Connecting a Raspberry Pi through its *i2s* interface (in this design) keeps the DAC as
 master clock, and uses the Pi as clock slave on this interface:
-- This has the advantage of a clean clock with minimal jitter without any clock synchronization issues,
-  in contrast with using the classic s/pdif inputs.
+- This has the advantage of a clean clock with minimal jitter without any clock synchronization issues.
+  (In contrast with using the classic s/pdif inputs.)
 - It requires that -per song- the Pi informs the DAC board on the required sample-rate.
-So, where the *i2s* interface is used to pass the audio data, the Pi also uses an *i2c* bus connection
+
+So, where the *i2s* interface is used to pass the audio data,
+the Pi also uses an [i2c](https://en.wikipedia.org/wiki/I2C) connection
 to the DAC board to communicate on the sample-rate.
-In practice, it also enables the Pi to control the audio volume, input selection, and power-state,
-and use the Pi as full-featured audio streamer.
+In practice, this also enables the Pi to control the audio volume, input selection, and power-state,
+and make the Pi a full-featured audio streamer.
 
 For the Pi to obtain such control, it needs an audio device driver.
-Such audio device driver is provided in this directory.
+Such Linux kernel audio device driver is provided in this directory.
 
 ## Contents
 - Creating the development setup
@@ -44,16 +46,18 @@ The *Lite* version, without desktop environment, is fine: we will only use
 the Linux command-line [through an 'ssh' connection](https://www.raspberrypi.com/documentation/computers/remote-access.html#ssh).
 Optionally, it might also be convenient to [share your Pi home directory](https://www.raspberrypi.com/documentation/computers/remote-access.html#samba) with your desktop.
 
+All further text in thie README assumes that you are logged-in on the Pi,
+maybe through *ssh*, and execute the commands locally on the Pi.
 
 The Raspberry Pi OS comes with `gcc` and the required `include` files pre-installed, so we don't need to install that.
 
-To obtain a copy of the source code and *make* utility, it is easiest to install
-`git` on the Pi:
+To obtain a copy of the source code in the Pi, it is easiest to install
+`git`:
 ```
 sudo apt install git
 ```
-Since this git repository contains many more things, for building
-the Pi device drivers you might want to `checkout` only the relevant directory.
+Since this git repository contains many more things, for just building
+the Pi device drivers you probably want to `checkout` only the relevant directory.
 That gains speed and reduces the size on your Pi's memory card.
 ```
 git clone --filter=blob:none --sparse  --depth 1 git@github.com:JosVanEijndhoven/diyaudio-dac-preamp.git
@@ -90,14 +94,15 @@ ask for your password:
 ```
 make install
 ```
-1. It would be good to have the `i2c` and `i2s` connections activated in
+It would be good to have the `i2c` and `i2s` connections activated in
 the `/boot/firmware/config.txt`, by adding (uncommenting) the
 following two lines. If they were absent, do a reboot:
 ```
 dtparam=i2c_arm=on
 dtparam=i2s=on
 ```
-2. Now one can load the `jedac` driver at runtime in the kernel:
+
+Now one can load the `jedac` driver at runtime in the kernel:
 ```
 make test_dtoverlay
 ```
@@ -172,7 +177,8 @@ to play some audio stream. This is needed in particular for playing
 a *compact* 3-bytes-per-sample stream is created.
 The Pi cannot send such stream to its *i2s* output with DMA.
 The `type plug` will automatically insert a software filter that performs
-*padding* to extend each sample to 32-bit.
+*zero-padding* to extend each sample to 32-bit.
+Such *plugging* would also be done for mono audio streams.
 
-## Using an audio network streaming application
+## A note on the 'uisync' gpio pin
 
