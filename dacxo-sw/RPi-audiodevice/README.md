@@ -2,17 +2,19 @@
 
 ## Introduction
 
-The DAC design initially/traditionally focussed on using the four s/pdif inputs on its digital board.
-However, that board also provides a fifth digital audio input: an i2s input intended to connect
+This DAC design initially/traditionally focussed on using the four s/pdif inputs on its digital board: two coax and two optical inputs.
+However, that board also provides a fifth digital audio input:
+an *i2s* input intended to connect
 an audio network streaming device in the form of a Raspberry Pi.
-I chose a tiny 'Raspberry Pi zero 2w' for this purpose.
+I chose a tiny
+[Raspberry Pi zero 2w](https://www.raspberrypi.com/products/raspberry-pi-zero-2-w/) for this purpose.
 
-Connecting a Raspberry Pi through its i2s interface (in this design) keeps the DAC as
+Connecting a Raspberry Pi through its *i2s* interface (in this design) keeps the DAC as
 master clock, and uses the Pi as clock slave on this interface:
 - This has the advantage of a clean clock with minimal jitter without any clock synchronization issues,
   in contrast with using the classic s/pdif inputs.
 - It requires that -per song- the Pi informs the DAC board on the required sample-rate.
-So, where the i2s interface is used to pass the audio data, the Pi also uses an i2c bus connection
+So, where the *i2s* interface is used to pass the audio data, the Pi also uses an *i2c* bus connection
 to the DAC board to communicate on the sample-rate.
 In practice, it also enables the Pi to control the audio volume, input selection, and power-state,
 and use the Pi as full-featured audio streamer.
@@ -26,7 +28,6 @@ Such audio device driver is provided in this directory.
 - Initial testing of the device driver
 - Activating the device driver on boot
 - Choosing the DAC as system default audio device
-- Using an audio network streaming application
 
 ## Creating the development setup
 To build the device driver kernel modules, I opted (and would recommend)
@@ -46,7 +47,132 @@ Optionally, it might also be convenient to [share your Pi home directory](https:
 
 The Raspberry Pi OS comes with `gcc` and the required `include` files pre-installed, so we don't need to install that.
 
+To obtain a copy of the source code and *make* utility, it is easiest to install
+`git` on the Pi:
+```
+sudo apt install git
+```
+Since this git repository contains many more things, for building
+the Pi device drivers you might want to `checkout` only the relevant directory.
+That gains speed and reduces the size on your Pi's memory card.
+```
+git clone --filter=blob:none --sparse  --depth 1 git@github.com:JosVanEijndhoven/diyaudio-dac-preamp.git
+cd diyaudio-dac-preamp
+git sparse-checkout set dacxo-sw/RPi-audiodevice
+git checkout
+```
+Now, `cd dacxo-sw/RPi-audiodevice` to start building.
+
+## Building and installing the device driver
+
+The `Makefile` in this directory defines targets for many actions.
+
+The `jedac` device driver consists of two kernel modules:
+- `jedac_bcm`, the *board control module*, or *card driver*.
+- `jedac_codec`: the *codec* module.
+
+To just build these in the current directory, you do:
+```
+make modules
+```
+The two built modules can be seen with `ls -l */*.ko`.
+
+Besides these kernel modules, the driver needs a *device tree overlay*.
+This specifies how/where these modules need to hooked into the Linux device tree.
+This *device tree overlay* also needs to be compiled. So run:
+```
+make overlays/jedac.dtbo
+```
+
+If there are no fatal errors, proceed with installing these build results
+in the Pi system directories. The following command uses `sudo` and might
+ask for your password:
+```
+make install
+```
+1. It would be good to have the `i2c` and `i2s` connections activated in
+the `/boot/firmware/config.txt`, by adding (uncommenting) the
+following two lines. If they were absent, do a reboot:
+```
+dtparam=i2c_arm=on
+dtparam=i2s=on
+```
+2. Now one can load the `jedac` driver at runtime in the kernel:
+```
+make test_dtoverlay
+```
+The above command will show some log output (from `dmesg`), from
+loading and initializing the driver.
+
+When encountering issues, the installation and overlay can be undone with:
+```
+make uninstall
+```
+Also, local build artefacts can be removed with:
+```
+make clean
+```
+
+Until now this is all reasonably safe: a next reboot will not yet
+automatically load the driver, so there is no risk of destroying a clean boot.
 
 
+The driver code and its overlay were developed on Pi OS version.
+Recent history has shown that the Linux audio (ALSA) kernel api's are not very stable...
 
+## Initial testing of the device driver
+If making the `test_dtoverlay` seemed OK, without errors, audio can be played!
+For instance by:
+```
+make sound
+```
+The card properties that the driver exposes to ALSA can be seen with:
+```
+make show_card
+```
+The low-level device registers on the *i2c* bus (in the three different
+i2c devices of this card) can be examined at runtime
+through the Linux *debugfs* mechanism with:
+```
+make show_registers
+```
+Note that on receiving fisrt audio, this device driver will automatically
+power-up the DAC if it was in standby, and select its *i2s* input.
+
+## Activating the device driver on boot
+After some testing, the installed driver can be made to
+automatically active on every boot.
+There are two mechanisms to achieve this. Choose one of:
+1. Add a line in `/boot/firmware/config.txt`:
+```
+dtoverlay=jedac,sync_pin=27
+```
+2. Use the Linux *systemctl* service mechanism for this:
+```
+make install_service
+```
+The latter option allows to *start* and *stop* this at runtime,
+which had my preference.
+
+## Choosing the DAC as system default audio device
+Note that the above `make install` will also install the `etc/asound.conf`
+as provided by this repo. That makes the new *jedac* device as the system default
+audio device. On my *Pi zero 2w*, the default audio device is otherwise
+its hdmi output. Of course, alternatively, one can probably also configure
+the `jedac` audio output specifically for the audio media player application.
+
+This device driver announces to the Linux ALSA system that it accepts audio
+streams with samplerates: `44100`, `48000`, `88200`, `96000`, `176400`, and `192000`.
+It accepts audio formats with `16` or `24` bits per sample, and 2 channels (stereo).
+
+In the proposed `asound.conf`, the default audio is created with `type plug`,
+which means that the kernel can *plug* format conversions if deemed necessary
+to play some audio stream. This is needed in particular for playing
+24-bit FLAC streams: after basic decoding (such as by the `flac` application),
+a *compact* 3-bytes-per-sample stream is created.
+The Pi cannot send such stream to its *i2s* output with DMA.
+The `type plug` will automatically insert a software filter that performs
+*padding* to extend each sample to 32-bit.
+
+## Using an audio network streaming application
 
