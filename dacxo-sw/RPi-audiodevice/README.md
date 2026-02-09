@@ -65,17 +65,36 @@ cd diyaudio-dac-preamp
 git sparse-checkout set dacxo-sw/RPi-audiodevice
 git checkout
 ```
-Now, `cd dacxo-sw/RPi-audiodevice` to start building.
+Now, `cd dacxo-sw/RPi-audiodevice` to see what you got and start building.
+
+## The device driver source code files
+
+The device driver C-code sources consists of various files in the `bcm` and `codecs`
+sub-directory.
+
+1. `bcm/jedac_bcm.c`: This is 'board control module', it specifies that there is an *i2c* connection to the board, to control the FPGA and the two pcm1792 dac chips.
+Around [jedac5_bcm.c:343](jedac_soc_modules/bcm/jedac5_bcm.c#L343)
+the *i2s* interface mode is set to `JEDAC_DAIFMT`.
+This is defined in `codecs/jedac5.h` with (among others)
+the value of `SND_SOC_DAIFMT_CBP_CFP`. This configures the Pi *i2s* interface
+as clock slave, for both the bit-clock and the word-clock.
+This board driver also takes care of powering-up the board if it would be in *standby*.
+
+2. `codecs/jedac_codec.c`: It implements the *per audio stream*
+dac sample rate control with the i2c registers in the FPGA.
+3. `codecs/jedac.h`: constants regarding the codec, also passed to the `jedac5_bcm.c`.
+4. `codecs/pcm1792a.h`: constants to drive the pcm1792a on-chip registers. code.
+
 
 ## Building and installing the device driver
 
-The `Makefile` in this directory defines targets for many actions.
+The `Makefile` in this `RPi-audiodevice` directory defines targets for many actions.
 
 The `jedac` device driver consists of two kernel modules:
 - `jedac_bcm`, the *board control module*, or *card driver*.
 - `jedac_codec`: the *codec* module.
 
-To just build these in the current directory, you do:
+To just build these in the current directory tree, you do:
 ```
 make modules
 ```
@@ -121,9 +140,9 @@ make clean
 Until now this is all reasonably safe: a next reboot will not yet
 automatically load the driver, so there is no risk of destroying a clean boot.
 
-
-The driver code and its overlay were developed on Pi OS version.
-Recent history has shown that the Linux audio (ALSA) kernel api's are not very stable...
+The driver code and its overlay were developed on the 64-bit Pi OS of December 2025,
+debian version 13 (trixie), with Linux kernel *6.12.62+rpt-rpi-v8*.
+Recent history has shown that the Linux audio (ALSA) kernel api's do not remaain very stable over time.
 
 ## Initial testing of the device driver
 If making the `test_dtoverlay` seemed OK, without errors, audio can be played!
@@ -161,7 +180,7 @@ which had my preference.
 
 ## Choosing the DAC as system default audio device
 Note that the above `make install` will also install the `etc/asound.conf`
-as provided by this repo. That makes the new *jedac* device as the system default
+as provided by this repo. That makes the new *jedac* device as the default
 audio device. On my *Pi zero 2w*, the default audio device is otherwise
 its hdmi output. Of course, alternatively, one can probably also configure
 the `jedac` audio output specifically for the audio media player application.
@@ -178,7 +197,11 @@ a *compact* 3-bytes-per-sample stream is created.
 The Pi cannot send such stream to its *i2s* output with DMA.
 The `type plug` will automatically insert a software filter that performs
 *zero-padding* to extend each sample to 32-bit.
-Such *plugging* would also be done for mono audio streams.
+Such *plugging* would also be done for instance for mono audio streams.
 
-## A note on the 'uisync' gpio pin
+## Raspberry Pi I/O pins used by this driver
 
+This diafram shows the pinout of the three *i2s* and two *i2c* interfaces on the Pi
+40-pin GPIO connector:
+
+![RPi schematic diagram of I/O](../../images/rpi-driver-pinout.png)

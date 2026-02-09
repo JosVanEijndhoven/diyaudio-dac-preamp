@@ -23,7 +23,7 @@ That is a major advantage over using s/pdiff interfaces.
 
 The (gmrender-resurrect)[https://github.com/hzeller/gmrender-resurrect]
 software is installed on the *raspberry Pi zero 2w* according to
-its description. That desfription is fine: although it mentions
+its description. That description is fine: although it mentions
 *gstreamer1.0* in some of its package names, it actually
 instals the recent versions of that.
 
@@ -35,7 +35,15 @@ sudo usermod -a -G i2c gmedia
 sudo usermod -a -G gpio gmedia
 ```
 
-Edit the `scripts/init.d/gmediarender` file:
+Edit the `scripts/init.d/gmediarender` file, modifying a few lines such as:
+```
+DAEMON_USER="gmedia:audio"
+UPNP_DEVICE_NAME="MyDac"
+ALSA_DEVICE="plughw:JEDAC"
+start-stop-daemon -x $BINARY_PATH ... --mime-filter audio
+```
+(On the long `start-stop-daemon` line, add the `--mime-filter audio` option
+restricting this *dlna renderer* to only play audio, not video.)
 
 Then, install it with:
 ```
@@ -43,33 +51,12 @@ sudo cp scripts/init.d/gmediarenderer /etc/init.d
 sudo update-rc.d gmediarenderer defaults
 ```
 
-## The Pi Linux ALSA device driver
+## System load for playing audio streams over wifi
 
-A dedicated Linux kernel-level device driver is developed, so that the DAC board
-becomes available as a true ALSA audio device.
-
-- It configures the Pi *i2s* interface as clock slave, for both the
-bit-clock and the word-clock (frame). This setting avoids clock synchronization issues with
-the DAC high-quality crystal oscillators.
-- Per audio stream, it writes its sample rate to the DAC
-fpga, so that suitable clock frequencies are generated.
-
-### Building and installing the ALSA device driver on Raspberry Pi
-
-### ALSA driver source code
-
-The device driver sources consists of various files:
-
-1. `bcm/jedac5_bcm.c`: This is 'board control module', it specifies that there is an *i2c* connection to the board, to control the FPGA and the two pcm1792 dac chips.
-It also specifies the *i2s* audio data interface.
-2. `codecs/jedac5_codec.c`: It implements the dac control
-3. `codecs/jedac5.h`: constants regarding the codec, also passed to the `jedac5_bcm.c`.
-4. `codecs/pcm1792a.h`: constants to drive the pcm1792a on-chip registers.
-   This should better have been part of the `pcm179x` kernel driver source code.
-
-Some notes on this software:
-
-Around [jedac5_bcm.c:266](jedac_soc_modules/bcm/jedac5_bcm.c#L266) the *i2s* interface mode
-is set to `JEDAC_DAIFMT`. This is defined in `codecs/jedac5.h` with (among others)
-the value of `SND_SOC_DAIFMT_CBP_CFP`. This configures the Pi *i2s* interface
-as clock slave, for both the bit-clock and the word-clock.
+My small *Rapsberry Pi zero 2W* seems just fine and powerful enough
+for this task. For example, a *high resolution* FLAC-encoded stream can easily be
+sent to this *DLNA renderer*.
+A *96K* samplerate and *24-bits* per sample stereo FLAC stream has
+a variable bandwidth of roughly 400KBytes/sec. For such a stream,
+the renderer uses about 7% cpu load (on 1 of the 4 available cores)
+and takes about 25% (or 125MB) of the available 512MB memory.

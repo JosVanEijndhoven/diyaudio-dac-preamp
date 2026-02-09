@@ -34,8 +34,8 @@ This repository contains all hardware and software design aspects:
 - The [digital signal processing board](./dacxo-hw/PCBs/PCB-dacxo/), schematics and PCB design.
 - The [logic configuration of the FPGA](./dacxo-hw/FPGA-content/) on that board,
 - The [analog output board](./dacxo-hw/PCBs/PCB-opampout/), schematics and PCB design,
-- Addition of a Raspberry Pi as network media player, with [i2s output to the DAC](./dacxo-sw/RPi-audiodevice/),
-  including a dedicated Linux kernel driver.
+- Addition of a Raspberry Pi as [network media player](./dacxo-sw/), with i2s output to the DAC,
+  including a dedicated [Linux kernel audio device driver](./dacxo-sw/RPi-audiodevice/).
 
 ## Focus on Jitter
 
