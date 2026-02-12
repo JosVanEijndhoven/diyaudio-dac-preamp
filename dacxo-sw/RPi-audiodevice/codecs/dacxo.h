@@ -15,12 +15,12 @@
  * GNU General Public License for more details.
  */
  
-#ifndef _JEDAC_H
-#define _JEDAC_H
+#ifndef _DACXO_H
+#define _DACXO_H
 
 // somewhat dirty architecture to share the card 'private data' struct type
 // with the codec :-(   Just easy and pragmatic...
-struct jedac_bcm_priv {
+struct dacxo_bcm_priv {
 	  struct gpio_desc *uisync_gpio;
 		struct i2c_client *fpga;
     struct i2c_client *dac_l;
@@ -32,24 +32,24 @@ struct jedac_bcm_priv {
 #define DAC_IS_CLK_MASTER 1
 
 #ifdef DAC_IS_CLK_MASTER
-#define JEDAC_RATES (SNDRV_PCM_RATE_44100  | SNDRV_PCM_RATE_48000 |\
+#define DACXO_RATES (SNDRV_PCM_RATE_44100  | SNDRV_PCM_RATE_48000 |\
 			          SNDRV_PCM_RATE_88200  | SNDRV_PCM_RATE_96000 |\
 			          SNDRV_PCM_RATE_176400 | SNDRV_PCM_RATE_192000)
 					  // i2s left justified output, rpi is clock slave
 // Hmm... I prefer SND_SOC_DAIFMT_LEFT_J however,
 //        only SND_SOC_DAIFMT_I2S is now implemented in soc/bcm/bcm2708-i2s.c :-(
 // see for repair: https://github.com/humppe/spdif-encoder/blob/master/spdif-hack.patch
-#define JEDAC_DAIFMT (SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_CONT |\
+#define DACXO_DAIFMT (SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_CONT |\
 					  SND_SOC_DAIFMT_NB_NF  | SND_SOC_DAIFMT_CBP_CFP)
 #else
-#define JEDAC_RATES (SNDRV_PCM_RATE_44100  | SNDRV_PCM_RATE_48000 |\
+#define DACXO_RATES (SNDRV_PCM_RATE_44100  | SNDRV_PCM_RATE_48000 |\
 			          SNDRV_PCM_RATE_88200  | SNDRV_PCM_RATE_96000)
-#define JEDAC_DAIFMT (SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_CONT |\
+#define DACXO_DAIFMT (SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_CONT |\
 					  SND_SOC_DAIFMT_NB_NF  | SND_SOC_DAIFMT_CBS_CFS)
 #endif
 					  
-#define JEDAC_FORMATS (SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S16_LE)
-//#define JEDAC_FORMATS (SNDRV_PCM_FMTBIT_S32_LE)
+#define DACXO_FORMATS (SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S16_LE)
+//#define DACXO_FORMATS (SNDRV_PCM_FMTBIT_S32_LE)
 
 #define DAC_max_attenuation_dB 80
 #define DAC_step_attenuation_dB 1
@@ -86,4 +86,4 @@ struct jedac_bcm_priv {
 // GPIO pin number on RPi Zero to interact with EspHome UI controller
 #define GPIO_UI_TRIG    27
 		  
-#endif /* _JEDAC_H */
+#endif /* _DACXO_H */

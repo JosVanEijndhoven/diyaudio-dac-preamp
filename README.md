@@ -1,20 +1,21 @@
-# Audio DAC and digital pre-amp with low jitter
+# DACXO: Audio DAC and digital pre-amp with low jitter
 
 ![overview photo](images/dac5-overview-850.jpg)
 
 ## Introduction
 
-This repository provides all HW and SW sources of my DIY audio DAC design.
+[This github repository](https://github.com/JosVanEijndhoven/diyaudio-dac-preamp) 
+provides all HW and SW sources of my DIY audio DAC design.
 The 'audio Digital-to-Analog Conversion' is the heart and main aim of the design.
 However, more audio device functionality was built around that:
 
 - Functionality for a digital pre-amp is provided, with input selection
-  and volume control. Inputs are optical and coax s/pdif, HDMI-arc, and a network DLNA player.
+  and volume control. Inputs are optical and coax s/pdif, HDMI-arc, and a network DLNA audio player.
 - The control UI (user interface) is created with [esphome](https://esphome.io/).
   Besides the front panel control knob, this also provides remote control from a mobile phone
   and/or integration in [home assistant](https://www.home-assistant.io/) automation environments.
 - The core DAC design aims for high-end audio, with a focus on low jitter, not
-  trying to reach low component cost.
+  aiming to reach low component cost.
 
 The intention of this repository is to show some solutions across a wide range of design choices,
 potentially of interest to other DIY audio enthousiasts.
@@ -23,8 +24,14 @@ as some design files might be outdated for the various tools and components that
 the design start was around 2015. (But its development still continous in 2026...)
 This DAC design builds on previous experience: it is already my 5th design.
 
-Currently (december 2025) I just started to upload my design in github, and thereby make it public visible.
+Only in december 2025 I started to upload my design in github, and thereby make it public visible.
 I still have to spend further effort in documenting the design and its choices.
+
+The name **DACXO** is related to:
+- Its good **X**tal **O**scillator and low-jitter clock signals.
+- Its **X**tra **O**riginal clock synchronization scheme on the s/pdif inputs.
+- The now **X** [years](https://en.wikipedia.org/wiki/Roman_numerals) **O**ld circuit design when creating this open-source repository.
+- The domain name [dacxo](www.dacxo.com) being available :smile:
 
 ## Contents
 

@@ -1,4 +1,4 @@
-// Definitions for Jos van Eijndhoven's DAC "jedac"
+// Definitions for Jos van Eijndhoven's DAC "dacxo"
 // intended to be attached to a Raspberry Pi
 // January 2016
 //
@@ -20,22 +20,22 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			jedac_core: jedac_codec@10 {
+			dacxo_core: dacxo_codec@10 {
 				// property causes subnode as one of dai_link->num_codecs
 				// and inclusion in the dai_link->codecs array.
-				compatible = "jve,jedac_codec";
+				compatible = "jve,dacxo_codec";
 				reg = <0x10>; // Is address of onboard fpga
         #sound-dai-cells = <0>;
 				status = "okay";
 			};
 
-			jedac_dacl: pcm1792a@4d {
+			dacxo_dacl: pcm1792a@4d {
 				compatible = "jve,pcm1792a";  // my own i2c device
 				reg = <0x4d>; // left audio channel
 				status = "okay";
 			};
 
-			jedac_dacr: pcm1792a@4c {
+			dacxo_dacr: pcm1792a@4c {
 				compatible = "jve,pcm1792a";  // my own i2c device
 				reg = <0x4c>; // right audio channel
 				status = "okay";
@@ -47,7 +47,7 @@
 	fragment@1 {
     target = <&gpio>;
     __overlay__ {
-      jedac_pins: jedac_pins {
+      dacxo_pins: dacxo_pins {
         brcm,pins = <27>;     /* BCM GPIO number */
         brcm,function = <0>;  /* 0:in, 1:out, 2:alt5, etc. */
         brcm,pull = <2>;      /* 0:none, 1:down, 2:up */
@@ -60,17 +60,17 @@
 		target-path = "/"; /* Targeting root instead of &sound */
 		// target = <&sound>;
 		__overlay__ {
-      jedac_sound: jedac_sound {
-        compatible = "jve,jedac_bcm";
+      dacxo_sound: dacxo_sound {
+        compatible = "jve,dacxo_bcm";
         i2s-controller = <&i2s>;
   			status = "okay";
 
-        jve,jedac_codec = <&jedac_core>;
-  			jve,dac_l = <&jedac_dacl>;
-	  		jve,dac_r = <&jedac_dacr>;
+        jve,dacxo_codec = <&dacxo_core>;
+  			jve,dac_l = <&dacxo_dacl>;
+	  		jve,dac_r = <&dacxo_dacr>;
 
   			pinctrl-names = "default";
-        pinctrl-0 = <&jedac_pins>;
+        pinctrl-0 = <&dacxo_pins>;
         // define 'uisync' as name to find in the driver
         // mode 22 = GPIO_OPEN_DRAIN | GPIO_PULL_UP
 			  uisync-gpios = <&gpio 27 22>;
@@ -80,7 +80,7 @@
         };
 
         simple-audio-card,codec {
-          sound-dai = <&jedac_core>;
+          sound-dai = <&dacxo_core>;
         };
 			};
 		};
@@ -97,7 +97,7 @@
   /* --- Runtime Override to parameterize the uisync gpio pin number, default is 27 --- */
   __overrides__ {
     /* Syntax: name = <target_phandle>,"property_name:offset_in_bytes" */
-    sync_pin = <&jedac_pins>,"brcm,pins:0",
-               <&jedac_sound>,"uisync-gpios:4"; 
+    sync_pin = <&dacxo_pins>,"brcm,pins:0",
+               <&dacxo_sound>,"uisync-gpios:4"; 
   };
 };

@@ -40,47 +40,47 @@
 #include <sound/tlv.h>
 
 
-#include "jedac.h"
+#include "dacxo.h"
 
-static const struct reg_default jedac_reg_defaults[] = {
+static const struct reg_default dacxo_reg_defaults[] = {
 	{ REGDAC_GPO0,          0x00 },
 	{ REGDAC_GPO1,          0x00 },
 	{ REGDAC_GPI0,          0x00 },
 	{ REGDAC_GPI1,          0x00 },
 };
 
-static bool jedac_writeable(struct device *dev, unsigned int reg) {
+static bool dacxo_writeable(struct device *dev, unsigned int reg) {
 	return (reg == REGDAC_GPO0) || (reg == REGDAC_GPO1);
 }
 
-static bool jedac_readable(struct device *dev, unsigned int reg) {
-	return (reg == REGDAC_GPI0) || (reg == REGDAC_GPI1) || jedac_writeable(dev, reg);
+static bool dacxo_readable(struct device *dev, unsigned int reg) {
+	return (reg == REGDAC_GPI0) || (reg == REGDAC_GPI1) || dacxo_writeable(dev, reg);
 }
 
-static bool jedac_volatile(struct device *dev, unsigned int reg) {
+static bool dacxo_volatile(struct device *dev, unsigned int reg) {
 	return (reg == REGDAC_GPI0) || (reg == REGDAC_GPI1);  // run-time status
 }
 
-const struct regmap_config jedac_regmap_config = {
+const struct regmap_config dacxo_regmap_config = {
 	.reg_bits = 8,
 	.val_bits = 8,
 	.max_register = REGDAC_GPI1,
-	.readable_reg = jedac_readable,
-	.writeable_reg = jedac_writeable,
-	.volatile_reg = jedac_volatile,
-	.reg_defaults = jedac_reg_defaults,
-	.num_reg_defaults = ARRAY_SIZE(jedac_reg_defaults),
+	.readable_reg = dacxo_readable,
+	.writeable_reg = dacxo_writeable,
+	.volatile_reg = dacxo_volatile,
+	.reg_defaults = dacxo_reg_defaults,
+	.num_reg_defaults = ARRAY_SIZE(dacxo_reg_defaults),
 	.cache_type = REGCACHE_RBTREE,
 };
 
 static int codec_set_dai_fmt(struct snd_soc_dai *codec_dai,
                              unsigned int format)
 {
-	pr_warn("jedac_codec set_dai_fmt(format=%u) DUMMY\n", format);
+	pr_warn("dacxo_codec set_dai_fmt(format=%u) DUMMY\n", format);
 	return 0;
 }
 
-static int jedac_set_i2s_rate(struct snd_soc_component *codec, int samplerate, struct gpio_desc *sync_pin)
+static int dacxo_set_i2s_rate(struct snd_soc_component *codec, int samplerate, struct gpio_desc *sync_pin)
 {
 	int freq_base, freq_mult;
 	
@@ -105,7 +105,7 @@ static int jedac_set_i2s_rate(struct snd_soc_component *codec, int samplerate, s
 	
 	struct regmap *map = dev_get_regmap(codec->dev, NULL);
 	if (!map) {
-		pr_err("jedac codec: regmap not found error!");
+		pr_err("dacxo codec: regmap not found error!");
     return -EINVAL;
 	}
 
@@ -124,9 +124,9 @@ static int jedac_set_i2s_rate(struct snd_soc_component *codec, int samplerate, s
 	gpiod_set_value(sync_pin, 1);  // release pin
 
 	if (reg_err == 0)
-	  pr_info("jedac_codec: set_i2s_rate: write GPO0=0x%02x with mask 0x%02x OK!\n", (int)(gpo0_new), GPO0_CLKMASK);
+	  pr_info("dacxo_codec: set_i2s_rate: write GPO0=0x%02x with mask 0x%02x OK!\n", (int)(gpo0_new), GPO0_CLKMASK);
 	else
-	  pr_warn("jedac_codec: set_i2s_rate: write GPO0=0x%02x, i2c write error=%d\n", (int)(gpo0_new), reg_err);
+	  pr_warn("dacxo_codec: set_i2s_rate: write GPO0=0x%02x, i2c write error=%d\n", (int)(gpo0_new), reg_err);
 	return reg_err;
 }
 
@@ -136,7 +136,7 @@ static int codec_hw_params(struct snd_pcm_substream *substream,
 {
   struct snd_soc_component *codec = dai->component;
   struct snd_soc_card *card = codec->card;
-  struct jedac_bcm_priv *card_priv = snd_soc_card_get_drvdata(card);
+  struct dacxo_bcm_priv *card_priv = snd_soc_card_get_drvdata(card);
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
 	int samplerate = params_rate(params);
@@ -144,10 +144,10 @@ static int codec_hw_params(struct snd_pcm_substream *substream,
 	int clk_ratio = 64; // fixed bclk ratio is easiest for my HW
 
 	int err_clk = snd_soc_dai_set_bclk_ratio(cpu_dai, clk_ratio);
-	int err_rate = jedac_set_i2s_rate(codec, samplerate, card_priv->uisync_gpio);
+	int err_rate = dacxo_set_i2s_rate(codec, samplerate, card_priv->uisync_gpio);
 	
 	//	snd_pcm_format_physical_width(params_format(params));
-	pr_info("jedac_codec: hw_params(rate=%d, width=%d) err_clk=%d err_rate=%d\n",
+	pr_info("dacxo_codec: hw_params(rate=%d, width=%d) err_clk=%d err_rate=%d\n",
 		samplerate, samplewidth, err_clk, err_rate);
 
 	return err_clk;
@@ -159,19 +159,19 @@ static const struct snd_soc_dai_ops codec_dai_ops = {
 	// .mute_stream = codec_digital_mute
 };
 
-static struct snd_soc_dai_driver jedac_dai = {
-	.name = "jedac_codec",
+static struct snd_soc_dai_driver dacxo_dai = {
+	.name = "dacxo_codec",
 	.playback = {
 		.stream_name = "Playback",
 		.channels_min = 2,
 		.channels_max = 2,
-		.rates = JEDAC_RATES,
-		.formats = JEDAC_FORMATS
+		.rates = DACXO_RATES,
+		.formats = DACXO_FORMATS
 	},
 	.ops = &codec_dai_ops
 };
 
-static int jedac_codec_probe(struct snd_soc_component *codec)
+static int dacxo_codec_probe(struct snd_soc_component *codec)
 {
   // Called *after* the below i2c_probe()
 
@@ -184,23 +184,23 @@ static int jedac_codec_probe(struct snd_soc_component *codec)
 	uint8_t reg_chan = GPO0_POWERUP | GPO0_CLKMASTER;
 	int i2cerr = regmap_write(regmap, REGDAC_GPO0, reg_chan);
 
-	pr_info("jedac_codec probe(): initialize component \"%s\": %s\n",
+	pr_info("dacxo_codec probe(): initialize component \"%s\": %s\n",
 	  (codec && codec->name) ? codec->name : "NULL",
 	  (i2cerr == 0) ? "OK" : "Fail");
 
 	return 0;
 }
 
-static void jedac_codec_remove(struct snd_soc_component *component)
+static void dacxo_codec_remove(struct snd_soc_component *component)
 {
-	pr_info("jedac_codec remove() codec\n");
+	pr_info("dacxo_codec remove() codec\n");
 }
 
 
-static struct snd_soc_component_driver jedac_codec_driver = {
-	.name         = "jedac codec driver",
-	.probe 				= jedac_codec_probe,
-	.remove 			= jedac_codec_remove,
+static struct snd_soc_component_driver dacxo_codec_driver = {
+	.name         = "dacxo codec driver",
+	.probe 				= dacxo_codec_probe,
+	.remove 			= dacxo_codec_remove,
 };
 
 static int codec_i2c_probe(struct i2c_client *i2c)
@@ -211,24 +211,24 @@ static int codec_i2c_probe(struct i2c_client *i2c)
 	// called when the os encounters this i2c device.
 	// Crucial: its call to snd_soc_register_component where this i2c device announces
 	// that it is part of the ASOC sound system
-	pr_info("jedac_codec i2c_probe(name=\"%s\", addr=0x%02x)\n", i2c->name, (i2c->addr & 0x7f));
+	pr_info("dacxo_codec i2c_probe(name=\"%s\", addr=0x%02x)\n", i2c->name, (i2c->addr & 0x7f));
 	
-	struct regmap *regmap = devm_regmap_init_i2c(i2c, &jedac_regmap_config);
+	struct regmap *regmap = devm_regmap_init_i2c(i2c, &dacxo_regmap_config);
 	if (IS_ERR(regmap)) {
 		ret = PTR_ERR(regmap);
-		dev_err(dev, "jedac_codec: Failed to register i2c regmap for \"%s\": %d\n", i2c->name, ret);
+		dev_err(dev, "dacxo_codec: Failed to register i2c regmap for \"%s\": %d\n", i2c->name, ret);
 		return ret;
 	}
-	// Note: this codec regmap is also used at card level, in 'jedac_bcm.c"
+	// Note: this codec regmap is also used at card level, in 'dacxo_bcm.c"
 
-	ret = snd_soc_register_component(dev, &jedac_codec_driver, &jedac_dai, 1);
+	ret = snd_soc_register_component(dev, &dacxo_codec_driver, &dacxo_dai, 1);
 	if (ret && ret != -EPROBE_DEFER) {
-		dev_err(dev, "jedac_codec i2c_probe: Failed to register codec component, err=%d\n", ret);
+		dev_err(dev, "dacxo_codec i2c_probe: Failed to register codec component, err=%d\n", ret);
 	}
 	if (!ret) {
-		pr_info("jedac_codec i2c_probe: registered codec component!\n");
+		pr_info("dacxo_codec i2c_probe: registered codec component!\n");
 	} else {
- 	  pr_info("jedac_codec i2c_probe: register component returns %d\n", ret);
+ 	  pr_info("dacxo_codec i2c_probe: register component returns %d\n", ret);
 	}
 	return ret;
 }
@@ -236,7 +236,7 @@ static int codec_i2c_probe(struct i2c_client *i2c)
 static void codec_i2c_remove(struct i2c_client *i2c)
 {
 	const char i2c_standby[] = {REGDAC_GPO0, 0x00};
-	pr_info("jedac_codec i2c_remove(), DAC power-down\n");
+	pr_info("dacxo_codec i2c_remove(), DAC power-down\n");
 	
 	// power-down the DAC board to stand-by
 	i2c_master_send(i2c, i2c_standby, 2);
@@ -244,23 +244,23 @@ static void codec_i2c_remove(struct i2c_client *i2c)
 }
 
 static const struct i2c_device_id codec_i2c_id[] = {
-	{ "jedac_codec", 0 },
+	{ "dacxo_codec", 0 },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, codec_i2c_id);
 
-static const struct of_device_id jedac_of_match[] = {
-	{ .compatible = "jve,jedac_codec", },
+static const struct of_device_id dacxo_of_match[] = {
+	{ .compatible = "jve,dacxo_codec", },
 	{ }
 };
-MODULE_DEVICE_TABLE(of, jedac_of_match);
+MODULE_DEVICE_TABLE(of, dacxo_of_match);
 
 static struct i2c_driver codec_i2c_driver = {
 	.driver = {
-		.name = "jedac codec i2c driver",
+		.name = "dacxo codec i2c driver",
 		.owner = THIS_MODULE,
-//		.pm = &jedac_pm,
-		.of_match_table = jedac_of_match,
+//		.pm = &dacxo_pm,
+		.of_match_table = dacxo_of_match,
 	},
 	.probe = codec_i2c_probe,
 	.remove = codec_i2c_remove,
@@ -268,7 +268,7 @@ static struct i2c_driver codec_i2c_driver = {
 };
 module_i2c_driver(codec_i2c_driver);
 
-MODULE_DESCRIPTION("ASoC jedac codec driver");
+MODULE_DESCRIPTION("ASoC dacxo codec driver");
 MODULE_AUTHOR("Jos van Eijndhoven <jos@vaneijndhoven.net>");
 MODULE_LICENSE("GPL v2");
 MODULE_SOFTDEP("pre: regmap_i2c"); // Hints to the kernel to load this first

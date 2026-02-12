@@ -1,2 +1,2 @@
-obj-m := snd-soc-jedac_codec.o
-snd-soc-jedac_codec-y := jedac_codec.o
+obj-m := snd-soc-dacxo_codec.o
+snd-soc-dacxo_codec-y := dacxo_codec.o

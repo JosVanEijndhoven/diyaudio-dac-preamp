@@ -72,17 +72,17 @@ Now, `cd dacxo-sw/RPi-audiodevice` to see what you got and start building.
 The device driver C-code sources consists of various files in the `bcm` and `codecs`
 sub-directory.
 
-1. `bcm/jedac_bcm.c`: This is 'board control module', it specifies that there is an *i2c* connection to the board, to control the FPGA and the two pcm1792 dac chips.
-Around [jedac5_bcm.c:343](jedac_soc_modules/bcm/jedac5_bcm.c#L343)
-the *i2s* interface mode is set to `JEDAC_DAIFMT`.
-This is defined in `codecs/jedac5.h` with (among others)
+1. `bcm/dacxo_bcm.c`: This is 'board control module', it specifies that there is an *i2c* connection to the board, to control the FPGA and the two pcm1792 dac chips.
+Around [dacxo5_bcm.c:343](dacxo_soc_modules/bcm/dacxo5_bcm.c#L343)
+the *i2s* interface mode is set to `DACXO_DAIFMT`.
+This is defined in `codecs/dacxo5.h` with (among others)
 the value of `SND_SOC_DAIFMT_CBP_CFP`. This configures the Pi *i2s* interface
 as clock slave, for both the bit-clock and the word-clock.
 This board driver also takes care of powering-up the board if it would be in *standby*.
 
-2. `codecs/jedac_codec.c`: It implements the *per audio stream*
+2. `codecs/dacxo_codec.c`: It implements the *per audio stream*
 dac sample rate control with the i2c registers in the FPGA.
-3. `codecs/jedac.h`: constants regarding the codec, also passed to the `jedac5_bcm.c`.
+3. `codecs/dacxo.h`: constants regarding the codec, also passed to the `dacxo5_bcm.c`.
 4. `codecs/pcm1792a.h`: constants to drive the pcm1792a on-chip registers. code.
 
 
@@ -90,9 +90,9 @@ dac sample rate control with the i2c registers in the FPGA.
 
 The `Makefile` in this `RPi-audiodevice` directory defines targets for many actions.
 
-The `jedac` device driver consists of two kernel modules:
-- `jedac_bcm`, the *board control module*, or *card driver*.
-- `jedac_codec`: the *codec* module.
+The `dacxo` device driver consists of two kernel modules:
+- `dacxo_bcm`, the *board control module*, or *card driver*.
+- `dacxo_codec`: the *codec* module.
 
 To just build these in the current directory tree, you do:
 ```
@@ -104,7 +104,7 @@ Besides these kernel modules, the driver needs a *device tree overlay*.
 This specifies how/where these modules need to hooked into the Linux device tree.
 This *device tree overlay* also needs to be compiled. So run:
 ```
-make overlays/jedac.dtbo
+make overlays/dacxo.dtbo
 ```
 
 If there are no fatal errors, proceed with installing these build results
@@ -121,7 +121,7 @@ dtparam=i2c_arm=on
 dtparam=i2s=on
 ```
 
-Now one can load the `jedac` driver at runtime in the kernel:
+Now one can load the `dacxo` driver at runtime in the kernel:
 ```
 make test_dtoverlay
 ```
@@ -169,7 +169,7 @@ automatically active on every boot.
 There are two mechanisms to achieve this. Choose one of:
 1. Add a line in `/boot/firmware/config.txt`:
 ```
-dtoverlay=jedac,sync_pin=27
+dtoverlay=dacxo,sync_pin=27
 ```
 2. Use the Linux *systemctl* service mechanism for this:
 ```
@@ -180,10 +180,10 @@ which had my preference.
 
 ## Choosing the DAC as system default audio device
 Note that the above `make install` will also install the `etc/asound.conf`
-as provided by this repo. That makes the new *jedac* device as the default
+as provided by this repo. That makes the new *dacxo* device as the default
 audio device. On my *Pi zero 2w*, the default audio device is otherwise
 its hdmi output. Of course, alternatively, one can probably also configure
-the `jedac` audio output specifically for the audio media player application.
+the `dacxo` audio output specifically for the audio media player application.
 
 This device driver announces to the Linux ALSA system that it accepts audio
 streams with samplerates: `44100`, `48000`, `88200`, `96000`, `176400`, and `192000`.

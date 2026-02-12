@@ -39,7 +39,7 @@ Edit the `scripts/init.d/gmediarender` file, modifying a few lines such as:
 ```
 DAEMON_USER="gmedia:audio"
 UPNP_DEVICE_NAME="MyDac"
-ALSA_DEVICE="plughw:JEDAC"
+ALSA_DEVICE="plughw:DACXO"
 start-stop-daemon -x $BINARY_PATH ... --mime-filter audio
 ```
 (On the long `start-stop-daemon` line, add the `--mime-filter audio` option

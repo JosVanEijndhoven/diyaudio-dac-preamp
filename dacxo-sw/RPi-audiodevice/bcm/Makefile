@@ -1,8 +1,8 @@
 KDIR=/lib/modules/$(shell uname -r)/build
-obj-m += jedac_bcm.o
+obj-m += dacxo_bcm.o
 
 default:
 	$(MAKE) -C $(KDIR) M=$$PWD
 
 clean:
-	rm -f snd-soc-jedac* *.o Module.symvers modules.order
+	rm -f snd-soc-dacxo* *.o Module.symvers modules.order

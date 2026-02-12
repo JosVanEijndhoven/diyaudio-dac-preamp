@@ -40,7 +40,7 @@
 #include <sound/soc-dapm.h>
 #include <sound/tlv.h>
 
-#include "../codecs/jedac.h"
+#include "../codecs/dacxo.h"
 #include "../codecs/pcm1792a.h"
 
 static const struct reg_default pcm1792a_reg_defaults[] = {
@@ -77,10 +77,10 @@ static const struct regmap_config pcm1792_regmap_config = {
   .cache_type       = REGCACHE_RBTREE, // This remembers values while DAC is not powered
 };
 
-static void jedac_set_attenuation( struct jedac_bcm_priv *priv, unsigned short vol_l, unsigned short vol_r);
+static void dacxo_set_attenuation( struct dacxo_bcm_priv *priv, unsigned short vol_l, unsigned short vol_r);
 
 /* sound card init */
-static int jedac_pcm1792_init(struct i2c_client *dac, bool is_powered, bool is_right_chan)
+static int dacxo_pcm1792_init(struct i2c_client *dac, bool is_powered, bool is_right_chan)
 {
 	struct pcm_reg_init {
 		uint8_t reg_nr;
@@ -91,12 +91,12 @@ static int jedac_pcm1792_init(struct i2c_client *dac, bool is_powered, bool is_r
 		{ PCM1792A_MODE_CONTROL, 0x62},  // reg 19: slow unmute, filter slow rolloff
 		{ PCM1792A_STEREO_CONTROL, (is_right_chan ? 0x0c : 0x08)} // reg 20: set mono mode, choose channel
 	};
-  pr_info("jedac_bcm: initialize pcm1792a(%s %s) i2c registers, power=%d\n",
+  pr_info("dacxo_bcm: initialize pcm1792a(%s %s) i2c registers, power=%d\n",
 		dac->name, (is_right_chan ? "Right" : "Left"), is_powered);
 
 	struct regmap *regs = dev_get_regmap(&dac->dev, NULL);
 	if (!regs) {
-    dev_err(&dac->dev, "jedac_bcm: initialize pcm1792a(%s) i2c registers failed: no regmap?\n", (is_right_chan ? "Right" : "Left"));
+    dev_err(&dac->dev, "dacxo_bcm: initialize pcm1792a(%s) i2c registers failed: no regmap?\n", (is_right_chan ? "Right" : "Left"));
 		return -ENODEV;
 	}
 
@@ -107,7 +107,7 @@ static int jedac_pcm1792_init(struct i2c_client *dac, bool is_powered, bool is_r
 	int err = 0;
 	for (int i = 0; i < ARRAY_SIZE(inits) && !err; i++) {
 		err = regmap_write(regs, inits[i].reg_nr, inits[i].value);
-		pr_info("jedac_bcm: init pcm1792a:  write reg=%d, val=0x%02x, err=%d\n", inits[i].reg_nr, inits[i].value, err);
+		pr_info("dacxo_bcm: init pcm1792a:  write reg=%d, val=0x%02x, err=%d\n", inits[i].reg_nr, inits[i].value, err);
 	}
 
 	if (!is_powered) {
@@ -117,12 +117,12 @@ static int jedac_pcm1792_init(struct i2c_client *dac, bool is_powered, bool is_r
 	return err;
 }
 
-static int jedac_bcm_init(struct snd_soc_pcm_runtime *rtd)
+static int dacxo_bcm_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_card *card = rtd->card;
-  struct jedac_bcm_priv *priv = snd_soc_card_get_drvdata(card);
+  struct dacxo_bcm_priv *priv = snd_soc_card_get_drvdata(card);
 
-	pr_info("jedac_bcm: init(card=\"%s\", priv=%s)\n", card->name, ((priv == NULL) ? "NULL!" : "OK"));
+	pr_info("dacxo_bcm: init(card=\"%s\", priv=%s)\n", card->name, ((priv == NULL) ? "NULL!" : "OK"));
 	if (!priv)
 	  return -EINVAL;
 
@@ -140,8 +140,8 @@ static int jedac_bcm_init(struct snd_soc_pcm_runtime *rtd)
 
 	// the pcm1792 dac chip registers get initial assignment.
 	// When they are not yet powered-up, this initialization remains in the regmap cache,
-  jedac_pcm1792_init(priv->dac_l, is_powered, false);
-	jedac_pcm1792_init(priv->dac_r, is_powered, true);
+  dacxo_pcm1792_init(priv->dac_l, is_powered, false);
+	dacxo_pcm1792_init(priv->dac_r, is_powered, true);
 
 	if (is_powered) {
 		gpiod_set_value(priv->uisync_gpio, 1);
@@ -164,7 +164,7 @@ static int bcm_vol_info(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_info 
 
 static int bcm_vol_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
-	pr_info("jedac_bcm:my_snd_soc_get_volsw() private_value = %04lx\n",
+	pr_info("dacxo_bcm:my_snd_soc_get_volsw() private_value = %04lx\n",
 		kcontrol->private_value);
 
 	unsigned short vol_l = kcontrol->private_value & 0x00ff; // lower 16 bits for left channel, 1dB units
@@ -178,12 +178,12 @@ static int bcm_vol_get(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value 
 static int bcm_vol_put(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_card *card = snd_kcontrol_chip(kcontrol);
-  struct jedac_bcm_priv *priv = snd_soc_card_get_drvdata(card);
+  struct dacxo_bcm_priv *priv = snd_soc_card_get_drvdata(card);
   uint16_t vol_l = ucontrol->value.integer.value[0];
   uint16_t vol_r = ucontrol->value.integer.value[1];
 	
 	// ALSA values are configured to 0 (mute) to 80 (0dB, max volume)
-	pr_info("jedac_bcm: vol_put() ALSA vol_l=%u, vol_r=%d\n", vol_l, vol_r);
+	pr_info("dacxo_bcm: vol_put() ALSA vol_l=%u, vol_r=%d\n", vol_l, vol_r);
 
 	uint32_t new_vol = (vol_l << 16) | vol_r;
 	int changed = new_vol != priv->prev_volume;
@@ -192,7 +192,7 @@ static int bcm_vol_put(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_value 
 	  return 1;
 	
 	priv->prev_volume = new_vol;
-	jedac_set_attenuation( priv, DAC_max_attenuation_dB - vol_l, DAC_max_attenuation_dB - vol_r);
+	dacxo_set_attenuation( priv, DAC_max_attenuation_dB - vol_l, DAC_max_attenuation_dB - vol_r);
 
 	return 1;
 }
@@ -207,7 +207,7 @@ static DECLARE_TLV_DB_SCALE(dac_db_scale, (-100 * DAC_max_attenuation_dB),
 	                        (100 * DAC_step_attenuation_dB), 1);
 
 // Define the input names for the mixer UI
-static const char *const jedac_input_texts[] = {
+static const char *const dacxo_input_texts[] = {
     "Raspberry Pi", "HDMI/Spdif Coax 1", "Spdif Coax 2", "Spdif Optical 1", "Spdif Optical 2"
 };
 /* * SOC_ENUM_SINGLE(reg, shift, max_items, texts)
@@ -215,14 +215,14 @@ static const char *const jedac_input_texts[] = {
  * shift: The bit position where the selection starts
  * 5:     Number of items in the list
  */
-static const struct soc_enum jedac_input_enum =
-    SOC_ENUM_SINGLE(REGDAC_GPO0, 2, 5, jedac_input_texts);
+static const struct soc_enum dacxo_input_enum =
+    SOC_ENUM_SINGLE(REGDAC_GPO0, 2, 5, dacxo_input_texts);
 
-static int jedac_input_put(struct snd_kcontrol *kcontrol,
+static int dacxo_input_put(struct snd_kcontrol *kcontrol,
                            struct snd_ctl_elem_value *ucontrol)
 {
   struct snd_soc_card *card = snd_kcontrol_chip(kcontrol);
-  struct jedac_bcm_priv *priv = snd_soc_card_get_drvdata(card);
+  struct dacxo_bcm_priv *priv = snd_soc_card_get_drvdata(card);
   unsigned int sel = ucontrol->value.enumerated.item[0];
 
   if (sel >= 5) return -EINVAL; // Safety check
@@ -236,7 +236,7 @@ static int jedac_input_put(struct snd_kcontrol *kcontrol,
 	if (sel == curr_input_sel)
 		return 0;  // no change on input select
 
-  dev_info(card->dev, "jedac_bcm: Switching input to %d\n", sel);
+  dev_info(card->dev, "dacxo_bcm: Switching input to %d\n", sel);
   gpiod_set_value(priv->uisync_gpio, 0);  // pull-down 'uisync' pin: signal UI controller on change and stay silent
   
   // 2. Perform the I2C write to the FPGA
@@ -256,11 +256,11 @@ static int jedac_input_put(struct snd_kcontrol *kcontrol,
   return 1; // Return 1 to inform ALSA the value actually changed
 }
 
-static int jedac_input_get(struct snd_kcontrol *kcontrol,
+static int dacxo_input_get(struct snd_kcontrol *kcontrol,
                            struct snd_ctl_elem_value *ucontrol)
 {
   struct snd_soc_card *card = snd_kcontrol_chip(kcontrol);
-  struct jedac_bcm_priv *priv = snd_soc_card_get_drvdata(card);
+  struct dacxo_bcm_priv *priv = snd_soc_card_get_drvdata(card);
   unsigned int val;
 
   // Read directly from the FPGA to see what the hardware is actually doing
@@ -278,7 +278,7 @@ static int jedac_input_get(struct snd_kcontrol *kcontrol,
   return 0;
 }
 
-static const struct snd_kcontrol_new jedac_controls[] = {
+static const struct snd_kcontrol_new dacxo_controls[] = {
 	{
         .iface = SNDRV_CTL_ELEM_IFACE_MIXER,
         .name = "Master",  // or: Master Playback Volume
@@ -289,72 +289,72 @@ static const struct snd_kcontrol_new jedac_controls[] = {
         .tlv.p = dac_db_scale,
   },
 	SOC_ENUM_EXT("Input Source",
-		           jedac_input_enum, 
-               jedac_input_get,
-               jedac_input_put)
+		           dacxo_input_enum, 
+               dacxo_input_get,
+               dacxo_input_put)
 };
 
 /* startup */
-static int snd_rpi_jedac_startup(struct snd_pcm_substream *substream) {
+static int snd_rpi_dacxo_startup(struct snd_pcm_substream *substream) {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_component *component = snd_soc_rtd_to_codec(rtd, 0)->component;
-	pr_info("jedac_bcm:snd_rpi_jedac_startup(): codec=%s Dummy!\n", component->name);
+	pr_info("dacxo_bcm:snd_rpi_dacxo_startup(): codec=%s Dummy!\n", component->name);
 	return 0;
 }
 
 /* shutdown */
-static void snd_rpi_jedac_shutdown(struct snd_pcm_substream *substream) {
+static void snd_rpi_dacxo_shutdown(struct snd_pcm_substream *substream) {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_component *component = snd_soc_rtd_to_codec(rtd, 0)->component;
-	pr_info("jedac_bcm:snd_rpi_jedac_shutdown() codec=%s Dummy\n", component->name);
+	pr_info("dacxo_bcm:snd_rpi_dacxo_shutdown() codec=%s Dummy\n", component->name);
 }
 
 /* card suspend */
-static int jedac_suspend_post(struct snd_soc_card *card)
+static int dacxo_suspend_post(struct snd_soc_card *card)
 {
-	pr_info("jedac_bcm: jedac_suspend_post() Dummy\n");
+	pr_info("dacxo_bcm: dacxo_suspend_post() Dummy\n");
 	return 0;
 }
 
 /* card resume */
-static int jedac_resume_pre(struct snd_soc_card *card)
+static int dacxo_resume_pre(struct snd_soc_card *card)
 {
-	pr_info("jedac_bcm: jedac_resume_pre() Dummy\n");
+	pr_info("dacxo_bcm: dacxo_resume_pre() Dummy\n");
 	return 0;
 }
 
 /* machine stream operations */
-static struct snd_soc_ops snd_rpi_jedac_ops = {
-	.startup = snd_rpi_jedac_startup,
-	.shutdown = snd_rpi_jedac_shutdown,
+static struct snd_soc_ops snd_rpi_dacxo_ops = {
+	.startup = snd_rpi_dacxo_startup,
+	.shutdown = snd_rpi_dacxo_shutdown,
 };
 
 // Create references to my modules.
 // Note: the actual names are not important, they are later set to NULL during _probe()
-SND_SOC_DAILINK_DEFS(rpi_jedac,
+SND_SOC_DAILINK_DEFS(rpi_dacxo,
 	DAILINK_COMP_ARRAY(COMP_CPU("bcm2708-i2s.0")),
-	DAILINK_COMP_ARRAY(COMP_CODEC("jedac_codec.1-0020", "jedac_codec")), //fpga is at i2c bus 1 addr 20
+	DAILINK_COMP_ARRAY(COMP_CODEC("dacxo_codec.1-0020", "dacxo_codec")), //fpga is at i2c bus 1 addr 20
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("bcm2708-i2s.0")));
 
-static struct snd_soc_dai_link jedac_dai_link[] = {
+static struct snd_soc_dai_link dacxo_dai_link[] = {
 {
 	.name		= "JvE DAC5",
 	.stream_name	= "JvE DAC",
-	.dai_fmt	= JEDAC_DAIFMT,
-	.ops		= &snd_rpi_jedac_ops,
-	.init		= jedac_bcm_init,
-	SND_SOC_DAILINK_REG(rpi_jedac),
+	.dai_fmt	= DACXO_DAIFMT,
+	.ops		= &snd_rpi_dacxo_ops,
+	.init		= dacxo_bcm_init,
+	SND_SOC_DAILINK_REG(rpi_dacxo),
 },
 };
 
-static int jedac_bcm_power_event(struct snd_soc_dapm_widget *w,
+static int dacxo_bcm_power_event(struct snd_soc_dapm_widget *w,
                                  struct snd_kcontrol *kcontrol, int event)
 {
   struct snd_soc_card *card = w->dapm->card;
-  struct jedac_bcm_priv *priv = snd_soc_card_get_drvdata(card);
+  struct dacxo_bcm_priv *priv = snd_soc_card_get_drvdata(card);
 
 	if (!priv || !priv->fpga_regs) {
-		pr_err("jedac_bcm power_event: No access to fpga regmap error!\n");
+		pr_err("dacxo_bcm power_event: No access to fpga regmap error!\n");
 		return -EINVAL;
 	}
 
@@ -362,13 +362,13 @@ static int jedac_bcm_power_event(struct snd_soc_dapm_widget *w,
 	unsigned int gpo0_val = 0;
   int err = regmap_read(priv->fpga_regs, REGDAC_GPO0, &gpo0_val);
 	if (err) {
-		pr_err("jedac_bcm power_event: i2c access error %d!\n", err);
+		pr_err("dacxo_bcm power_event: i2c access error %d!\n", err);
 		return err;
 	}
 	bool power_is_on = (gpo0_val & GPO0_POWERUP) != 0;
 
   if (SND_SOC_DAPM_EVENT_ON(event)) {
-    dev_info(card->dev, "JEDAC: Powering up DAC rails, (power switch state is %d)\n", power_is_on);
+    dev_info(card->dev, "DACXO: Powering up DAC rails, (power switch state is %d)\n", power_is_on);
 		if (power_is_on)
 			return 0;
 
@@ -385,7 +385,7 @@ static int jedac_bcm_power_event(struct snd_soc_dapm_widget *w,
 		  if (!err) {
 			  is_powered = (gpi1_val & GPI1_ANAPWR) != 0;
 		  }
-			pr_info("jedac_bcm: power_event: DAC rails: regmap_err=%d, gpi1=0x%02x, Vana confirmed=%d\n",
+			pr_info("dacxo_bcm: power_event: DAC rails: regmap_err=%d, gpi1=0x%02x, Vana confirmed=%d\n",
 				err, gpi1_val, is_powered);
 			if (is_powered)
 			  break;
@@ -395,7 +395,7 @@ static int jedac_bcm_power_event(struct snd_soc_dapm_widget *w,
 
     /* C. Now that DACs have power, initialize them via I2C */
 		if (is_powered) {
-			pr_info("jedac_bcm: flush regmap cache to pcm1792 dacs");
+			pr_info("dacxo_bcm: flush regmap cache to pcm1792 dacs");
       // Mark the register cache as "Dirty", then "Sync" to write cached values
 			struct regmap *regs = dev_get_regmap(&priv->dac_l->dev, NULL);
       regcache_mark_dirty(regs);
@@ -405,10 +405,10 @@ static int jedac_bcm_power_event(struct snd_soc_dapm_widget *w,
       regcache_mark_dirty(regs);
       int err_r = regcache_sync(regs);
 			if (err_l || err_r) {
-			  pr_warn("jedac_bcm: regmap flush&sync: left err=%d, right err=%d!\n", err_l, err_r);
+			  pr_warn("dacxo_bcm: regmap flush&sync: left err=%d, right err=%d!\n", err_l, err_r);
 			}
 		} else {
-			pr_err("jedac_pcm: power_event: power-up DAC rails failed (err=%d)!", err);
+			pr_err("dacxo_pcm: power_event: power-up DAC rails failed (err=%d)!", err);
 		}
 		gpiod_set_value(priv->uisync_gpio, 1);  // release pull-down 'uisync' pin
   }
@@ -416,13 +416,13 @@ static int jedac_bcm_power_event(struct snd_soc_dapm_widget *w,
 }
 
 /* 2. Define the Widget and Route */
-static const struct snd_soc_dapm_widget jedac_bcm_widgets[] = {
-    SND_SOC_DAPM_SUPPLY("DAC_Rails", SND_SOC_NOPM, 0, 0, jedac_bcm_power_event,
+static const struct snd_soc_dapm_widget dacxo_bcm_widgets[] = {
+    SND_SOC_DAPM_SUPPLY("DAC_Rails", SND_SOC_NOPM, 0, 0, dacxo_bcm_power_event,
                         SND_SOC_DAPM_POST_PMU),
 		SND_SOC_DAPM_HP("Main Output", NULL), // A "Sink" for the audio
 };
 
-static const struct snd_soc_dapm_route jedac_bcm_routes[] = {
+static const struct snd_soc_dapm_route dacxo_bcm_routes[] = {
     /* Connect the Codec's output to our Power Supply widget */
     { "Playback", NULL, "DAC_Rails" }, 
     /* "Main Output" is fed by the FPGA's playback stream */
@@ -430,32 +430,32 @@ static const struct snd_soc_dapm_route jedac_bcm_routes[] = {
 };
 
 /* Audio card  -- machine driver */
-static struct snd_soc_card jedac_sound_card = {
-	.name = "JEDAC",
+static struct snd_soc_card dacxo_sound_card = {
+	.name = "DACXO",
 	.owner = THIS_MODULE,
-//	.remove = jedac_card_remove,
-	.dai_link = jedac_dai_link,
-	.num_links = ARRAY_SIZE(jedac_dai_link),
-	.controls = jedac_controls,
-	.num_controls = ARRAY_SIZE(jedac_controls),
-	.dapm_widgets = jedac_bcm_widgets,
-	.num_dapm_widgets = ARRAY_SIZE(jedac_bcm_widgets),
-	.dapm_routes = jedac_bcm_routes,
-	.num_dapm_routes = ARRAY_SIZE(jedac_bcm_routes),
+//	.remove = dacxo_card_remove,
+	.dai_link = dacxo_dai_link,
+	.num_links = ARRAY_SIZE(dacxo_dai_link),
+	.controls = dacxo_controls,
+	.num_controls = ARRAY_SIZE(dacxo_controls),
+	.dapm_widgets = dacxo_bcm_widgets,
+	.num_dapm_widgets = ARRAY_SIZE(dacxo_bcm_widgets),
+	.dapm_routes = dacxo_bcm_routes,
+	.num_dapm_routes = ARRAY_SIZE(dacxo_bcm_routes),
 	
-	.suspend_post = jedac_suspend_post,
-	.resume_pre = jedac_resume_pre,
+	.suspend_post = dacxo_suspend_post,
+	.resume_pre = dacxo_resume_pre,
 };
 
 // Helper to clear the i2c device reference count
-static void jedac_put_i2c_device_action(void *dev)
+static void dacxo_put_i2c_device_action(void *dev)
 {
     put_device((struct device *)dev);
 }
 
-/* node names of the i2c devices, to match with the jedac-overlay.dts */
+/* node names of the i2c devices, to match with the dacxo-overlay.dts */
 static const char* i2c_node_refs[] = {
-	"jve,jedac_codec",
+	"jve,dacxo_codec",
 	"jve,dac_l",
 	"jve,dac_r"
 };
@@ -465,27 +465,27 @@ static const char* i2c_node_refs[] = {
 // https://github.com/raspberrypi/linux/blob/rpi-6.12.y/sound/soc/bcm/hifiberry_dacplus.c
 // or, for a card with two codes like me:
 // https://github.com/raspberrypi/linux/blob/rpi-6.12.y/sound/soc/bcm/pifi-40.c
-static int snd_jedac_probe(struct platform_device *pdev)
+static int snd_dacxo_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct device_node *np = pdev->dev.of_node;
-	jedac_sound_card.dev = &pdev->dev;
+	dacxo_sound_card.dev = &pdev->dev;
 	
 	if (np) {
-    pr_info("jedac_bcm: start probe(), device node \"%s\"\n", np->name);
+    pr_info("dacxo_bcm: start probe(), device node \"%s\"\n", np->name);
 	} else {
-    pr_err("jedac_bcm: probe(): device node error!\n");
+    pr_err("dacxo_bcm: probe(): device node error!\n");
 		return -EINVAL;
 	}
 
 
 	// Allocate private memory managed by the device
-	struct jedac_bcm_priv* priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
+	struct dacxo_bcm_priv* priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
   if (!priv) {
-		pr_err("jedac_bcm: probe() failed to alloc priv struct!\n");
+		pr_err("dacxo_bcm: probe() failed to alloc priv struct!\n");
     return -ENOMEM;
 	}
-	snd_soc_card_set_drvdata(&jedac_sound_card, priv);
+	snd_soc_card_set_drvdata(&dacxo_sound_card, priv);
 
 	// Obtain access to the gpio pin "uisync" to send signals to the UI controller
 	// The "uisync" name and its gpio pin are defined in the DTS overlay file
@@ -494,15 +494,15 @@ static int snd_jedac_probe(struct platform_device *pdev)
 	  priv->uisync_gpio = devm_gpiod_get(&pdev->dev, "uisync", GPIOD_OUT_HIGH_OPEN_DRAIN);
 	  if (IS_ERR(priv->uisync_gpio)) {
 			int gpio_err = PTR_ERR(priv->uisync_gpio);
-		  pr_err("jedac_bcm: failed to access the 'uisync' gpio pin!, err=%d\n", gpio_err);
+		  pr_err("dacxo_bcm: failed to access the 'uisync' gpio pin!, err=%d\n", gpio_err);
 			priv->uisync_gpio = NULL;
 		  return gpio_err;
 	  } else {
-		  pr_info("jedac_bcm: successfully acquired 'uisync' gpio pin!\n");
+		  pr_info("dacxo_bcm: successfully acquired 'uisync' gpio pin!\n");
 	  }
 	}
 
-	struct snd_soc_dai_link *dai = &jedac_dai_link[0];
+	struct snd_soc_dai_link *dai = &dacxo_dai_link[0];
 	/* find my three i2c components on the dac board: an FPGA and two PCM1792 */
 	struct device_node *nodes[3];
 	struct i2c_client *clients[3];
@@ -511,7 +511,7 @@ static int snd_jedac_probe(struct platform_device *pdev)
 		nodes[i] = of_parse_phandle(np, name, 0);
 
 		if (!nodes[i]) {
-			dev_err(&pdev->dev, "jedac_bcm: handle %s not found!\n", name);
+			dev_err(&pdev->dev, "dacxo_bcm: handle %s not found!\n", name);
 		  clients[i] = NULL;
 			ret = -ENOENT;
 			continue;
@@ -519,9 +519,9 @@ static int snd_jedac_probe(struct platform_device *pdev)
 
     clients[i] = of_find_i2c_device_by_node(nodes[i]);
 		if (clients[i]) {
-			devm_add_action_or_reset(&pdev->dev, jedac_put_i2c_device_action, &clients[i]->dev);
+			devm_add_action_or_reset(&pdev->dev, dacxo_put_i2c_device_action, &clients[i]->dev);
 		} else {
-		  pr_info("jedac_bcm: For handle %s i2c device NOT found\n", name);
+		  pr_info("dacxo_bcm: For handle %s i2c device NOT found\n", name);
 			if (ret == 0)
 			  ret = -EPROBE_DEFER;  // maybe the i2c subsystem is not ready yet. try again later
 			continue;
@@ -546,7 +546,7 @@ static int snd_jedac_probe(struct platform_device *pdev)
 	if (priv->dac_l && !dev_get_regmap(&priv->dac_l->dev, NULL)) {
     struct regmap *regs = devm_regmap_init_i2c(priv->dac_l, &pcm1792_regmap_config);
 	  if (!regs) {
-		  dev_err(&priv->dac_l->dev, "jedac_codec: Failed to register i2c regmap for Left Dac!\n");
+		  dev_err(&priv->dac_l->dev, "dacxo_codec: Failed to register i2c regmap for Left Dac!\n");
 		  return -ENODEV;
 	  }
   }
@@ -554,7 +554,7 @@ static int snd_jedac_probe(struct platform_device *pdev)
 	if (priv->dac_r && !dev_get_regmap(&priv->dac_r->dev, NULL)) {
     struct regmap *regs = devm_regmap_init_i2c(priv->dac_r, &pcm1792_regmap_config);
 	  if (!regs) {
-		  dev_err(&priv->dac_r->dev, "jedac_codec: Failed to register i2c regmap for Right Dac\n");
+		  dev_err(&priv->dac_r->dev, "dacxo_codec: Failed to register i2c regmap for Right Dac\n");
 		  return -ENODEV;
 	  }
   }
@@ -562,10 +562,10 @@ static int snd_jedac_probe(struct platform_device *pdev)
 	// Find the i2s (dai) interface from the card to the codec:
 	struct device_node *i2s_node = of_parse_phandle(np, "i2s-controller", 0);
 	if (!i2s_node) {
-		dev_err(&pdev->dev, "jedac_bcm: i2s_node not found!\n");
+		dev_err(&pdev->dev, "dacxo_bcm: i2s_node not found!\n");
 		ret = -ENOENT;
 	} else {
-		pr_info("jedac_bcm: Found i2s handle for card\n");
+		pr_info("dacxo_bcm: Found i2s handle for card\n");
 	}
 
 	// We have one i2s 'digital audio interface' towards the board FPGA
@@ -579,7 +579,7 @@ static int snd_jedac_probe(struct platform_device *pdev)
 
 	if (ret == 0) {
 		// Good, all device tree nodes found!
-	  ret = devm_snd_soc_register_card(&pdev->dev, &jedac_sound_card);
+	  ret = devm_snd_soc_register_card(&pdev->dev, &dacxo_sound_card);
 	}
 	const char *msg = (ret == 0) ? "Success" :
 	                  (ret == -EINVAL) ? "Incomplete snd_soc_card struct?" :
@@ -589,11 +589,11 @@ static int snd_jedac_probe(struct platform_device *pdev)
 										(ret == -EPROBE_DEFER) ? "Deferred" : "Failure";
 	
 	if (ret && (ret != -EPROBE_DEFER)) {
-    dev_err(&pdev->dev, "jedac_bcm: probe: register_card error: \"%s\", return %d\n", msg, ret);
+    dev_err(&pdev->dev, "dacxo_bcm: probe: register_card error: \"%s\", return %d\n", msg, ret);
 	} else if (ret) {
-    dev_warn(&pdev->dev, "jedac_bcm: probe: register_card: \"%s\", return %d\n", msg, ret);
+    dev_warn(&pdev->dev, "dacxo_bcm: probe: register_card: \"%s\", return %d\n", msg, ret);
 	} else {
-		pr_info("jedac_bcm: probe: Register_card: Success!\n");
+		pr_info("dacxo_bcm: probe: Register_card: Success!\n");
 	}
 
 	// fix refcount of_node_get()/of_node_put()
@@ -605,30 +605,30 @@ static int snd_jedac_probe(struct platform_device *pdev)
 }
 
 /* sound card disconnect */
-static void snd_jedac_remove(struct platform_device *pdev)
+static void snd_dacxo_remove(struct platform_device *pdev)
 {
-	pr_info("jedac_bcm:snd_rpi_jedac_remove(): power-down DUMMY\n");
+	pr_info("dacxo_bcm:snd_rpi_dacxo_remove(): power-down DUMMY\n");
 }
 
-static const struct of_device_id jedac_of_match[] = {
-	{ .compatible = "jve,jedac_bcm", },
+static const struct of_device_id dacxo_of_match[] = {
+	{ .compatible = "jve,dacxo_bcm", },
 	{},
 };
-MODULE_DEVICE_TABLE(of, jedac_of_match);
+MODULE_DEVICE_TABLE(of, dacxo_of_match);
 
 /* sound card platform driver */
-static struct platform_driver snd_rpi_jedac_driver = {
+static struct platform_driver snd_rpi_dacxo_driver = {
 	.driver = {
-		.name   = "snd-rpi-jedac_bcm",
+		.name   = "snd-rpi-dacxo_bcm",
 		.owner  = THIS_MODULE,
-		.of_match_table = jedac_of_match,
+		.of_match_table = dacxo_of_match,
 	},
-	.probe          = snd_jedac_probe,
-	.remove         = snd_jedac_remove,
+	.probe          = snd_dacxo_probe,
+	.remove         = snd_dacxo_remove,
 };
-module_platform_driver(snd_rpi_jedac_driver);
+module_platform_driver(snd_rpi_dacxo_driver);
 
-static void jedac_set_attenuation_pcm1792(struct i2c_client *dac, uint16_t att)
+static void dacxo_set_attenuation_pcm1792(struct i2c_client *dac, uint16_t att)
 {
 	unsigned int chip_att = (att >= DAC_max_attenuation_dB) ? 0 : (255 - 2 * att);
 	// For the chip register: 255 is 0dB attenuation, full volume. Lower values give 0.5dB per step
@@ -639,17 +639,17 @@ static void jedac_set_attenuation_pcm1792(struct i2c_client *dac, uint16_t att)
 	  err = regmap_write(regs, PCM1792A_DAC_VOL_RIGHT, chip_att);
 
   if (err) {
-		dev_warn(&dac->dev, "jedac_bcm: set_attenuation_pcn1792(): write err=%d\n", err);
+		dev_warn(&dac->dev, "dacxo_bcm: set_attenuation_pcn1792(): write err=%d\n", err);
 	}
 }
 
-static void jedac_set_attenuation( struct jedac_bcm_priv *priv, uint16_t att_l, uint16_t att_r)
+static void dacxo_set_attenuation( struct dacxo_bcm_priv *priv, uint16_t att_l, uint16_t att_r)
 {
 	// att_? values are attenuation in dBs: 0 is max volume, 79 is min volume, 80 is mute
   int enable_20dB_att = (att_l >= 20) && (att_r >= 20);
   int mute = (att_l >= DAC_max_attenuation_dB) && (att_r >= DAC_max_attenuation_dB);
 	
-	pr_info("jedac_bcm: set_attenuation(att_l=%u att_r=%u)\n", att_l, att_r);
+	pr_info("dacxo_bcm: set_attenuation(att_l=%u att_r=%u)\n", att_l, att_r);
 	
   // adjust the analog volume attenuation -20dB relay if not totally silent
   if (enable_20dB_att && !mute) {
@@ -661,16 +661,16 @@ static void jedac_set_attenuation( struct jedac_bcm_priv *priv, uint16_t att_l, 
 	// write the board 20dB_attenuation to the fpga:
 	int err = regmap_write(priv->fpga_regs, REGDAC_GPO1, (enable_20dB_att ? GPO1_ATT20DB : 0));
   if (err) {
-    pr_warn("jedac_bcm: set_attenuation(): in \"%s\" i2c write: err=%d!\n", priv->fpga->name, err);
+    pr_warn("dacxo_bcm: set_attenuation(): in \"%s\" i2c write: err=%d!\n", priv->fpga->name, err);
     // continue further operation...
   } else {
-		pr_info("jedac_bcm: set_attenuation(): wrote enable_20db_att=%d\n", enable_20dB_att);
+		pr_info("dacxo_bcm: set_attenuation(): wrote enable_20db_att=%d\n", enable_20dB_att);
 	}
 
 	// the pcm1792 dacs are used in dual-mono mode:
 	// write the volume to each of both codecs
-  jedac_set_attenuation_pcm1792(priv->dac_l, att_l);
-  jedac_set_attenuation_pcm1792(priv->dac_r, att_r);
+  dacxo_set_attenuation_pcm1792(priv->dac_l, att_l);
+  dacxo_set_attenuation_pcm1792(priv->dac_r, att_r);
 	gpiod_set_value(priv->uisync_gpio, 1);
 }
 
