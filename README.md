@@ -4,7 +4,7 @@
 
 ## Introduction
 
-[This github repository](https://github.com/JosVanEijndhoven/diyaudio-dac-preamp) 
+This [github repository](https://github.com/JosVanEijndhoven/diyaudio-dac-preamp) 
 provides all HW and SW sources of my DIY audio DAC design.
 The 'audio Digital-to-Analog Conversion' is the heart and main aim of the design.
 However, more audio device functionality was built around that:
@@ -28,10 +28,10 @@ Only in december 2025 I started to upload my design in github, and thereby make 
 I still have to spend further effort in documenting the design and its choices.
 
 The name **DACXO** is related to:
-- Its good **X**tal **O**scillator and low-jitter clock signals.
+- Its good **X**tal **O**scillator and low-jitter clocking.
 - Its **X**tra **O**riginal clock synchronization scheme on the s/pdif inputs.
 - The now **X** [years](https://en.wikipedia.org/wiki/Roman_numerals) **O**ld circuit design when creating this open-source repository.
-- The domain name [dacxo](www.dacxo.com) being available :smile:
+- As bonus, the domain name [dacxo](http://www.dacxo.com) was available.
 
 ## Contents
 
@@ -46,9 +46,9 @@ This repository contains all hardware and software design aspects:
 
 ## Focus on Jitter
 
-The main focus on this design is having really good behavior on jitter (that is, achieve very low jitter).
+The main focus on this design is having good behavior on jitter (that is, achieve very low jitter).
 Already for decades now, jitter is known to badly affect the sound quality of digital audio reproduction.
-Unfortunately, achieving low jitter makes a device more expensive, and measuring jitter requires expensive specialised equipment.
+Unfortunately, achieving low jitter makes a device more expensive, and measuring jitter behavior requires expensive specialised equipment.
 As result, many digital audio consumer products still show bad jitter behavoir.
 
 The audible effects of jitter in a digital audio player are:
@@ -57,21 +57,25 @@ The audible effects of jitter in a digital audio player are:
 - Unfocussed and unstable stereo imaging
 - Unpleasantly sharp (metal-sounding) highs
 
-Because many (cheaper) audio consumer devices behave badly in this respect, the old vinyl record playing has risen again in popularity.
-Luckily, good digital audio players don't show these artifacts, and can sound really natural and convincing!
+Because many (cheaper) audio consumer devices behave badly in this respect,
+the old vinyl record playing has risen again in popularity.
+Luckily, good digital audio players don't show these artifacts,
+and can sound really natural and convincing!
 
 Presumably in large part due to jitter effects, this DAC design sounds significantly better than for instance the
 [Cambridge Audio EXN100 player](https://www.cambridgeaudio.com/row/en/products/ex/exn100) which I bought early 2025, 
-which costs around 2000 US$. (That is in my opinion and some of my audio-loving friends.)
+which costs around 2000 US$. (Just in my opinion and some of my audio-loving friends.)
 
 For further background information on jitter in digital audio, you can easily find many sources on internet.
 
 As a final note, jitter artefacts do not only occur in audio DAC (digital-to-analog conversion),
-but similarly in analog-to-digital conversion (ADC). So, a poor-quality studio recording (or home recording)
+but similarly in analog-to-digital conversion (ADC).
+So, a poor-quality studio recording (or home recording)
 will introduce jitter artefacts in the digital audio stream.
-Once in there, these jitter artefacts cannot be removed anymore: a bad recording will sound bad forever. 
+Once in there, these jitter artefacts cannot be removed anymore:
+a bad recording will sound bad forever. 
 A good low-jitter player cannot improve a bad recording.
-Unfortunately, it seems to me that there exist many bad-quality recordings...
+Unfortunately, it seems to me that there are many bad-quality recordings around...
 
 ## License
 All source and configuration files provided in this repository are provided without any warrenty,

@@ -73,16 +73,16 @@ The device driver C-code sources consists of various files in the `bcm` and `cod
 sub-directory.
 
 1. `bcm/dacxo_bcm.c`: This is 'board control module', it specifies that there is an *i2c* connection to the board, to control the FPGA and the two pcm1792 dac chips.
-Around [dacxo5_bcm.c:343](dacxo_soc_modules/bcm/dacxo5_bcm.c#L343)
+Around [dacxo_bcm.c:343](dacxo_soc_modules/bcm/dacxo_bcm.c#L343)
 the *i2s* interface mode is set to `DACXO_DAIFMT`.
-This is defined in `codecs/dacxo5.h` with (among others)
+This is defined in `codecs/dacxo.h` with (among others)
 the value of `SND_SOC_DAIFMT_CBP_CFP`. This configures the Pi *i2s* interface
 as clock slave, for both the bit-clock and the word-clock.
 This board driver also takes care of powering-up the board if it would be in *standby*.
 
 2. `codecs/dacxo_codec.c`: It implements the *per audio stream*
 dac sample rate control with the i2c registers in the FPGA.
-3. `codecs/dacxo.h`: constants regarding the codec, also passed to the `dacxo5_bcm.c`.
+3. `codecs/dacxo.h`: constants regarding the codec, also passed to the `dacxo_bcm.c`.
 4. `codecs/pcm1792a.h`: constants to drive the pcm1792a on-chip registers. code.
 
 
