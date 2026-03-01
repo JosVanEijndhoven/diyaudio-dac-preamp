@@ -6,7 +6,7 @@
 
 This [github repository](https://github.com/JosVanEijndhoven/diyaudio-dac-preamp) 
 provides all HW and SW sources of my DIY audio DAC design.
-The 'audio Digital-to-Analog Conversion' is the heart and main aim of the design.
+The audio 'Digital-to-Analog Conversion' is the heart and main aim of the design.
 However, more audio device functionality was built around that:
 
 - Functionality for a digital pre-amp is provided, with input selection
@@ -27,7 +27,7 @@ This DAC design builds on previous experience: it is already my 5th design.
 Only in december 2025 I started to upload my design in github, and thereby make it public visible.
 I still have to spend further effort in documenting the design and its choices.
 
-The name **DACXO** is related to:
+The device name **DACXO** is related to:
 - Its good **X**tal **O**scillator and low-jitter clocking.
 - Its **X**tra **O**riginal clock synchronization scheme on the s/pdif inputs.
 - The now **X** [years](https://en.wikipedia.org/wiki/Roman_numerals) **O**ld circuit design when creating this open-source repository.
@@ -41,8 +41,9 @@ This repository contains all hardware and software design aspects:
 - The [digital signal processing board](./dacxo-hw/PCBs/PCB-dacxo/), schematics and PCB design.
 - The [logic configuration of the FPGA](./dacxo-hw/FPGA-content/) on that board,
 - The [analog output board](./dacxo-hw/PCBs/PCB-opampout/), schematics and PCB design,
-- Addition of a Raspberry Pi as [network media player](./dacxo-sw/), with i2s output to the DAC,
-  including a dedicated [Linux kernel audio device driver](./dacxo-sw/RPi-audiodevice/).
+- A [Linux kernel audio device driver](./dacxo-sw/RPi-audiodevice/),
+  so that the board can also be driven from various applications on a Rapsberry Pi.
+- Addition of a Raspberry Pi as [network media player](./dacxo-sw/), relying on above audio device driver.
 
 ## Focus on Jitter
 
