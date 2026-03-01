@@ -180,13 +180,9 @@ static int dacxo_codec_probe(struct snd_soc_component *codec)
   // .. and explicitly tell the component to use this regmap
   snd_soc_component_init_regmap(codec, regmap);
 
-	// Ensure power-up, make the DAC as i2s clock master
-	uint8_t reg_chan = GPO0_POWERUP | GPO0_CLKMASTER;
-	int i2cerr = regmap_write(regmap, REGDAC_GPO0, reg_chan);
-
-	pr_info("dacxo_codec probe(): initialize component \"%s\": %s\n",
+	pr_info("dacxo_codec probe(): initialize component \"%s\", regmap %s\n",
 	  (codec && codec->name) ? codec->name : "NULL",
-	  (i2cerr == 0) ? "OK" : "Fail");
+	  (regmap) ? "OK" : "ERR");
 
 	return 0;
 }
