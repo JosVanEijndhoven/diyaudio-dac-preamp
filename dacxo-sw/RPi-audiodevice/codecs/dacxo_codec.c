@@ -42,12 +42,14 @@
 
 #include "dacxo.h"
 
+/* refrain from providing these defaults: that avoids potential mismatch with actual reg content
 static const struct reg_default dacxo_reg_defaults[] = {
 	{ REGDAC_GPO0,          0x00 },
 	{ REGDAC_GPO1,          0x00 },
 	{ REGDAC_GPI0,          0x00 },
 	{ REGDAC_GPI1,          0x00 },
 };
+*/
 
 static bool dacxo_writeable(struct device *dev, unsigned int reg) {
 	return (reg == REGDAC_GPO0) || (reg == REGDAC_GPO1);
@@ -68,8 +70,8 @@ const struct regmap_config dacxo_regmap_config = {
 	.readable_reg = dacxo_readable,
 	.writeable_reg = dacxo_writeable,
 	.volatile_reg = dacxo_volatile,
-	.reg_defaults = dacxo_reg_defaults,
-	.num_reg_defaults = ARRAY_SIZE(dacxo_reg_defaults),
+	// .reg_defaults = dacxo_reg_defaults,
+	.num_reg_defaults = 0,  // ARRAY_SIZE(dacxo_reg_defaults),
 	.cache_type = REGCACHE_RBTREE,
 };
 

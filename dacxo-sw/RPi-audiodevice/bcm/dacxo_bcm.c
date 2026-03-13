@@ -43,6 +43,7 @@
 #include "../codecs/dacxo.h"
 #include "../codecs/pcm1792a.h"
 
+/* refrain from providing these defaults: that avoids potential mismatch with actual reg content
 static const struct reg_default pcm1792a_reg_defaults[] = {
 	{ PCM1792A_DAC_VOL_LEFT,   PCM1792A_DAC_VOL_LEFT_DEFAULT},
   { PCM1792A_DAC_VOL_RIGHT,  PCM1792A_DAC_VOL_RIGHT_DEFAULT },
@@ -50,6 +51,7 @@ static const struct reg_default pcm1792a_reg_defaults[] = {
   { PCM1792A_MODE_CONTROL,   PCM1792A_MODE_CONTROL_DEFAULT },
   { PCM1792A_STEREO_CONTROL, PCM1792A_STEREO_CONTROL_DEFAULT },
 };
+*/
 
 static bool pcm1792a_reg_writeable(struct device *dev, unsigned int reg) {
 	return (reg == PCM1792A_DAC_VOL_LEFT) || (reg == PCM1792A_DAC_VOL_RIGHT) ||
@@ -72,8 +74,8 @@ static const struct regmap_config pcm1792_regmap_config = {
 	.readable_reg     = pcm1792a_reg_readable,
 	.writeable_reg    = pcm1792a_reg_writeable,
 	.volatile_reg     = pcm1792a_reg_volatile,
-	.reg_defaults     = pcm1792a_reg_defaults,
-	.num_reg_defaults = ARRAY_SIZE(pcm1792a_reg_defaults),
+	// .reg_defaults     = pcm1792a_reg_defaults,
+	.num_reg_defaults = 0, // ARRAY_SIZE(pcm1792a_reg_defaults),
   .cache_type       = REGCACHE_RBTREE, // This remembers values while DAC is not powered
 };
 
