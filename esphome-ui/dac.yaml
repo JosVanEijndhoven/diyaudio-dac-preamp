@@ -94,15 +94,16 @@ external_components:
       type: local
       path: components
     components: [pcm1792_i2c]
-#  - source: github://Palakis/esphome-hdmi-cec
 #  - source:
 #      type: git
 #      url: https://github.com/JosVanEijndhoven/esphome-native-hdmi-cec
 #      ref: safe_collision
-  - source:
-      type: local
-      path: ../esphome/esphome/components
+  - source: github://pr#9189
     components: [hdmi_cec]
+#  - source:
+#      type: local
+#      path: ../esphome/esphome/components
+#    components: [hdmi_cec]
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -131,13 +132,13 @@ ota:
     password: !secret ota_pw
 
 wifi:
-  reboot_timeout: 5min
+  reboot_timeout: 0min
   output_power: 10dB
-  # fast_connect: true
+  fast_connect: true
   networks:
   - ssid: !secret wifi_chalet_ssid
     password: !secret wifi_chalet_pw
-  - ssid: !secret wifi_home_ssid
+  - ssid: !secret wifi_homeiot_ssid
     password: !secret wifi_home_pw
   on_connect:
     then:
@@ -150,6 +151,8 @@ wifi:
     ssid: "Dac Fallback Hotspot"
     password: "66FTMlSxkf38"
 
+captive_portal:
+
 globals:
   - id: power_is_on
     type: bool
@@ -159,10 +162,16 @@ globals:
     type: int
     restore_value: no
     initial_value: '1'
+  - id: only_update_ui
+    type: bool
+    restore_value: no
+    initial_value: 'false'
   - id: set_volume_mute
     type: std::function<void(bool)>
     initial_value: |-
       [](bool mute_override) {
+        if (id(only_update_ui))
+          return;
         uint8_t vol = std::lround(id(volume).state);
         bool mutes = id(mute).state || mute_override;
         if (mutes) {
@@ -219,10 +228,10 @@ number:
     id: channel
     name: "Channel"
     min_value: 0
-    max_value: 3
+    max_value: 4
     step: 1
     optimistic: true
-    initial_value: 2
+    initial_value: 0
     restore_value: true
     on_value:
       then:
@@ -232,8 +241,12 @@ number:
             args: [ id(channel).state ]
             level: "INFO"
         - lambda: |-
+            if (id(only_update_ui))
+              return;
             const uint8_t chan = std::lround(id(channel).state);
-            const uint8_t val =  0x80 | (chan << 2); // powerup, SPDIF (slave) mode, input 3
+            const uint8_t val =  (chan <= 3)
+                              ? 0x80 | (chan << 2) // powerup, SPDIF (slave) mode, input sel
+                              : 0x80 | 0x01;       // powerup, master mode for i2s input
             const uint8_t pwr_in_reg = 0x30;
             const int i2c_err = id(i2c_receiver).write_register(pwr_in_reg, &val, 1);
             if (i2c_err) {
@@ -480,7 +493,9 @@ switch:
         - lambda: |-
             // initialize power&input select on i2c reg in fpga
             const uint8_t chan = std::lround(id(channel).state);
-            const uint8_t seldata =  0x80 | (chan << 2); // powerup, SPDIF (slave) mode, input 3
+            const uint8_t seldata =  (chan <= 3)
+                                  ? 0x80 | (chan << 2) // powerup, SPDIF (slave) mode, input sel
+                                  : 0x80 | 0x01;       // powerup, master mode for i2s input
             const uint8_t pwr_in_reg = 0x30;
             const int i2c_err = id(i2c_receiver).write_register(pwr_in_reg, &seldata, 1);
             const uint8_t attenuate = 1;  // attenuate relay for silent power-up
@@ -609,7 +624,51 @@ sensor:
       - number.decrement:
           id: volume
           cycle: false
-  
+
+  - platform: pulse_meter
+    pin:
+      number: GPIO10
+      mode: INPUT_PULLUP
+    id: ui_sync_trigger
+    internal: true
+    filters:
+      - lambda: return 0;  // suppress logging the pulse frequency measurement
+      - filter_out: 0
+    # Note: use the 'pulse_meter' because pulses are too short to handle with 'binary sensor: platform: gpio'
+    total:
+      id: ui_sync_count
+      internal: true
+      on_value:
+        then:
+          - lambda: |-
+              // The 'ui_sync' signal got pulled-down and released by the RPi player,
+              // indicating that it changed i2c register state.
+              // read i2c status back to update esphome state variables and display
+              id(only_update_ui) = true;
+              uint8_t master_slave;
+              id(i2c_receiver).read_register(0x30, &master_slave, 1);
+              uint8_t chan = (master_slave & 0x1) ? 4 : ((master_slave >> 2) & 0x3);
+              id(channel).publish_state(chan);
+              id(power_is_on) = (master_slave & 0x80) != 0;
+              if (id(power_is_on)) {
+                uint8_t attenuation, pcm_volume;
+                id(i2c_receiver).read_register(0x31, &attenuation, 1);
+                id(i2c_dac_l).get_volume64(&pcm_volume);
+                uint8_t has_att20db = attenuation & 0x1;
+                ESP_LOGI("ui_sync", "master=%d, chan=%d, att=%d, pcm_vol=%d",
+                         (master_slave & 0x1), chan, has_att20db, pcm_volume);
+                uint8_t vol = pcm_volume;
+                if (has_att20db) {
+                  vol = (pcm_volume >= 20) ? pcm_volume - 20 : 0;
+                }
+                id(volume).publish_state(vol);
+                id(mute).publish_state(vol == 0);
+              } else {
+                ESP_LOGI("ui_sync", "master=%d, chan=%d, power=0",
+                         (master_slave & 0x1), chan);
+              }
+              id(only_update_ui) = false;
+
 binary_sensor:
   - platform: gpio
     pin:
@@ -654,11 +713,12 @@ binary_sensor:
             id(cec).send(logical_addr, 0xf, msg_data); // broadcast my physical address
             id(power_and_connected).publish_state(id(power).state);
     on_release:
-      - logger.log:
-          format: "HDMI Disconnected"
-          level: "INFO"
-      - lambda: |-
-          id(power_and_connected).publish_state(false);
+      then:
+        - logger.log:
+            format: "HDMI Disconnected"
+            level: "INFO"
+        - lambda: |-
+            id(power_and_connected).publish_state(false);
 
   - platform: gpio
     pin:
@@ -779,27 +839,49 @@ display:
       const char* clock_msg = "Nom";
       const char* buffer_msg = "Nom";
       const char* speed = "";
+      char chan_s[4];
       int i2c_err = 0;
       uint8_t recv_status = 0;
       static uint8_t prev_recv_status = 0;
       const uint8_t recv_status_reg = 0x34;
       const uint8_t chan = 1 + std::lround(id(channel).state);
+      if (chan == 1 && id(arc_state).state == "On")
+        std::snprintf(chan_s, sizeof(chan_s), "TV");
+      else if (chan <= 4) {
+        std::snprintf(chan_s, sizeof(chan_s), "%1d", chan);
+      } else { // chan == 5
+        std::snprintf(chan_s, sizeof(chan_s), "Pi");
+      }
       const uint8_t vol = std::lround(id(volume).state);
-      i2c_err = id(i2c_receiver).read_register(recv_status_reg, &recv_status, 1);
-      if (i2c_err) {
-        msg = "i2c bus error";
-        msg_color = c_red;
-      } else if (!(recv_status & 0x01)) {
-        msg = "No signal";
-        msg_color = c_yellow;
-      } else {
-        msg = samplerate_msg[(recv_status >> 1) & 0x07];
-        if (recv_status & 0x30) {
-          clock_msg = (recv_status & 0x20) ? "Low" : "High";
-          speed = (recv_status & 0x20) ? "-" : "+";
+      if (chan == 5) {
+        // i2s input, clock master mode, no buffer used
+        uint8_t master_slave_reg = 0;
+        i2c_err = id(i2c_receiver).read_register(0x30, &master_slave_reg, 1);
+        if (i2c_err) {
+          msg = "i2c bus error";
+          msg_color = c_red;
+        } else {
+          uint8_t clockrate = (master_slave_reg >> 1) & 0x7;
+          msg = samplerate_msg[clockrate];
         }
-        if (recv_status & 0xc0) {
-          buffer_msg = (recv_status & 0x40) ? "Low" : "High";
+      } else {
+        // s/pdif input, clock slave mode
+        i2c_err = id(i2c_receiver).read_register(recv_status_reg, &recv_status, 1);
+        if (i2c_err) {
+          msg = "i2c bus error";
+          msg_color = c_red;
+        } else if (!(recv_status & 0x01)) {
+          msg = "No signal";
+          msg_color = c_yellow;
+        } else {
+          msg = samplerate_msg[(recv_status >> 1) & 0x07];
+          if (recv_status & 0x30) {
+            clock_msg = (recv_status & 0x20) ? "Low" : "High";
+            speed = (recv_status & 0x20) ? "-" : "+";
+          }
+          if (recv_status & 0xc0) {
+            buffer_msg = (recv_status & 0x40) ? "Low" : "High";
+          }
         }
       }
       if (recv_status != prev_recv_status) {
@@ -817,7 +899,7 @@ display:
         it.printf(0, 140, id(roboto), c_white, "IP=%s", id(my_ip_address).state.c_str());
       } else {
         it.printf(110,   0, id(robotBig), c_white, "%02d", vol);
-        it.printf(0, 120, id(robotMid), c_white, "in %1d", chan);
+        it.printf(0, 120, id(robotMid), c_white, "in %s", chan_s);
         if (id(mute).state) {
           it.printf(120, 120, id(robotMid), c_white, "Muted");
         } else {

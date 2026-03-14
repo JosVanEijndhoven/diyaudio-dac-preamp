@@ -29,7 +29,7 @@ INSTALL_ALL := $(INSTALL_KOS) $(MODULES_ALIAS) $(INSTALL_DTB) $(INSTALL_ASOUND)
 
 install: $(INSTALL_ALL)
 
-install_service: $(INSTALL_SERVICE)
+install_service: $(INSTALL_SERVICE) $(INSTALL_ALL)
 	sudo systemctl enable dacxo.service
 	sudo systemctl start dacxo.service
 
