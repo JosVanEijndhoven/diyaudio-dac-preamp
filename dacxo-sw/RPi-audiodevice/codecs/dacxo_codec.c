@@ -60,7 +60,8 @@ static bool dacxo_readable(struct device *dev, unsigned int reg) {
 }
 
 static bool dacxo_volatile(struct device *dev, unsigned int reg) {
-	return (reg == REGDAC_GPI0) || (reg == REGDAC_GPI1);  // run-time status
+	// return (reg == REGDAC_GPI0) || (reg == REGDAC_GPI1);  // run-time status
+	return dacxo_readable(dev, reg);  // assume that other microcontroller can modify this state
 }
 
 const struct regmap_config dacxo_regmap_config = {

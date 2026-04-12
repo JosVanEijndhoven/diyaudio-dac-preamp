@@ -64,7 +64,8 @@ static bool pcm1792a_reg_readable(struct device *dev, unsigned int reg) {
 }
 
 static bool pcm1792a_reg_volatile(struct device *dev, unsigned int reg) {
-	return false;
+	// assume that volume control is (also) done by dac microcontroller, outside this driver
+	return (reg == PCM1792A_DAC_VOL_LEFT) || (reg == PCM1792A_DAC_VOL_RIGHT);
 }
 
 static const struct regmap_config pcm1792_regmap_config = {
@@ -82,7 +83,7 @@ static const struct regmap_config pcm1792_regmap_config = {
 static void dacxo_set_attenuation( struct dacxo_bcm_priv *priv, unsigned short vol_l, unsigned short vol_r);
 
 /* sound card init */
-static int dacxo_pcm1792_init(struct i2c_client *dac, bool is_powered, bool is_right_chan)
+static int dacxo_pcm1792_init(struct i2c_client *dac, bool is_right_chan)
 {
 	struct pcm_reg_init {
 		uint8_t reg_nr;
@@ -93,30 +94,33 @@ static int dacxo_pcm1792_init(struct i2c_client *dac, bool is_powered, bool is_r
 		{ PCM1792A_MODE_CONTROL, 0x62},  // reg 19: slow unmute, filter slow rolloff
 		{ PCM1792A_STEREO_CONTROL, (is_right_chan ? 0x0c : 0x08)} // reg 20: set mono mode, choose channel
 	};
-  pr_info("dacxo_bcm: initialize pcm1792a(%s %s) i2c registers, power=%d\n",
-		dac->name, (is_right_chan ? "Right" : "Left"), is_powered);
 
 	struct regmap *regs = dev_get_regmap(&dac->dev, NULL);
+	const char* const lr_name = is_right_chan ? "Right" : "Left";
 	if (!regs) {
-    dev_err(&dac->dev, "dacxo_bcm: initialize pcm1792a(%s) i2c registers failed: no regmap?\n", (is_right_chan ? "Right" : "Left"));
+    dev_err(&dac->dev, "dacxo_bcm: initialize pcm1792a(%s) i2c registers failed: no regmap?\n", lr_name);
 		return -ENODEV;
-	}
-
-	if (!is_powered) {
-	  regcache_cache_only(regs, true);
 	}
 
 	int err = 0;
 	for (int i = 0; i < ARRAY_SIZE(inits) && !err; i++) {
 		err = regmap_write(regs, inits[i].reg_nr, inits[i].value);
-		pr_info("dacxo_bcm: init pcm1792a:  write reg=%d, val=0x%02x, err=%d\n", inits[i].reg_nr, inits[i].value, err);
+		pr_info("dacxo_bcm: init pcm1792a(%s):  write reg=%d, val=0x%02x, err=%d\n",
+			lr_name, inits[i].reg_nr, inits[i].value, err);
 	}
-
-	if (!is_powered) {
-    regcache_cache_only(regs, false);
-  }
-
 	return err;
+}
+
+// Test if this pcm1792 has already been initialized
+static bool dacxo_pcm1792_test_init(struct i2c_client *dac) {
+	struct regmap *regs = dev_get_regmap(&dac->dev, NULL);
+	unsigned int fmt = 0;
+	if (regs) {
+	  regcache_cache_bypass(regs, true);
+	  regmap_read(regs, PCM1792A_FMT_CONTROL, &fmt);
+		regcache_cache_bypass(regs, false);
+	}
+	return (fmt == 0xb0);
 }
 
 static int dacxo_bcm_init(struct snd_soc_pcm_runtime *rtd)
@@ -124,31 +128,7 @@ static int dacxo_bcm_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_soc_card *card = rtd->card;
   struct dacxo_bcm_priv *priv = snd_soc_card_get_drvdata(card);
 
-	pr_info("dacxo_bcm: init(card=\"%s\", priv=%s)\n", card->name, ((priv == NULL) ? "NULL!" : "OK"));
-	if (!priv)
-	  return -EINVAL;
-
-  // Note that the FPGA has already done its own init during its 'probe()'
-  bool is_powered = false;
-	unsigned int gpi1_val = 0;
-  int err = regmap_read(priv->fpga_regs, REGDAC_GPI1, &gpi1_val);
-	if (!err) {
-		is_powered = (gpi1_val & GPI1_ANAPWR) != 0;
-	}
-
-	if (is_powered) {
-		gpiod_set_value(priv->uisync_gpio, 0);  // pull-down 'uisync' pin: signal UI controller on change and stay silent
-	}
-
-	// the pcm1792 dac chip registers get initial assignment.
-	// When they are not yet powered-up, this initialization remains in the regmap cache,
-  dacxo_pcm1792_init(priv->dac_l, is_powered, false);
-	dacxo_pcm1792_init(priv->dac_r, is_powered, true);
-
-	if (is_powered) {
-		gpiod_set_value(priv->uisync_gpio, 1);
-	}
-
+	pr_info("dacxo_bcm: init(card=\"%s\", priv=%s) Dummy\n", card->name, ((priv == NULL) ? "NULL!" : "OK"));
 	return 0;
 }
 
@@ -371,13 +351,12 @@ static int dacxo_bcm_power_event(struct snd_soc_dapm_widget *w,
 
   if (SND_SOC_DAPM_EVENT_ON(event)) {
     dev_info(card->dev, "DACXO: Powering up DAC rails, (power switch state is %d)\n", power_is_on);
-		if (power_is_on)
-			return 0;
-
-		gpiod_set_value(priv->uisync_gpio, 0);  // pull-down 'uisync' pin: signal UI controller on change and stay silent
 
     /* A. Tell FPGA to power ON the DACs */
-		err = regmap_update_bits(priv->fpga_regs, REGDAC_GPO0, GPO0_POWERUP, GPO0_POWERUP);
+		if (!power_is_on) {
+			gpiod_set_value(priv->uisync_gpio, 0);  // pull-down 'uisync' pin: signal UI controller on change and stay silent
+		  err = regmap_update_bits(priv->fpga_regs, REGDAC_GPO0, GPO0_POWERUP, GPO0_POWERUP);
+		}
 
     /* B. Wait for analog power to come up slowly */
 		bool is_powered = false;
@@ -395,26 +374,26 @@ static int dacxo_bcm_power_event(struct snd_soc_dapm_widget *w,
 			msleep(200);  // milliseconds: wait and retry..
 		}
 
-    /* C. Now that DACs have power, initialize them via I2C */
-		if (is_powered) {
-			pr_info("dacxo_bcm: flush regmap cache to pcm1792 dacs");
-      // Mark the register cache as "Dirty", then "Sync" to write cached values
-			struct regmap *regs = dev_get_regmap(&priv->dac_l->dev, NULL);
-      regcache_mark_dirty(regs);
-      int err_l = regcache_sync(regs);
-
-			regs = dev_get_regmap(&priv->dac_r->dev, NULL);
-      regcache_mark_dirty(regs);
-      int err_r = regcache_sync(regs);
-			if (err_l || err_r) {
-			  pr_warn("dacxo_bcm: regmap flush&sync: left err=%d, right err=%d!\n", err_l, err_r);
-			}
-		} else {
+		if (!is_powered) {
+			// power-up hardware failure!
 			pr_err("dacxo_pcm: power_event: power-up DAC rails failed (err=%d)!", err);
+		  gpiod_set_value(priv->uisync_gpio, 1);  // release pull-down 'uisync' pin
+      return err;
 		}
-		gpiod_set_value(priv->uisync_gpio, 1);  // release pull-down 'uisync' pin
-  }
-  return err;
+
+		if (power_is_on && dacxo_pcm1792_test_init(priv->dac_l)) {
+			// The 'power on' state was made earlier, maybe by another microcontroller.
+			return 0;
+		}
+
+    /* C. Now that DACs have obtained power, initialize them via I2C */
+		gpiod_set_value(priv->uisync_gpio, 0);  // pull-down 'uisync' pin: signal UI controller on change
+    dacxo_pcm1792_init(priv->dac_l, false);
+	  dacxo_pcm1792_init(priv->dac_r, true);
+	  gpiod_set_value(priv->uisync_gpio, 1);  // release pull-down 'uisync' pin
+	}  // dapm event 'on' done
+
+  return 0;
 }
 
 /* 2. Define the Widget and Route */
@@ -481,7 +460,7 @@ static int snd_dacxo_probe(struct platform_device *pdev)
 	}
 
 
-	// Allocate private memory managed by the device
+	// Allocate private memory managed by the device, initialised to 0
 	struct dacxo_bcm_priv* priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
   if (!priv) {
 		pr_err("dacxo_bcm: probe() failed to alloc priv struct!\n");
