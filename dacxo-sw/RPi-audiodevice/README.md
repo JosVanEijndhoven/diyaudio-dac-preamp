@@ -201,7 +201,7 @@ Such *plugging* would also be done for instance for mono audio streams.
 
 ## Raspberry Pi I/O pins used by this driver
 
-This diafram shows the pinout of the three *i2s* and two *i2c* interfaces on the Pi
+The below diagram shows the pinout of the three *i2s* signals and two *i2c* signals on the Pi
 40-pin GPIO connector:
 
 ![RPi schematic diagram of I/O](../../images/rpi-driver-pinout.png)
